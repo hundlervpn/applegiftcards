@@ -10,6 +10,10 @@ async def get_by_email(session: AsyncSession, email: str) -> User | None:
     return await session.scalar(select(User).where(User.email == email))
 
 
+async def get_by_id(session: AsyncSession, user_id: int) -> User | None:
+    return await session.get(User, user_id)
+
+
 async def get_or_create(session: AsyncSession, email: str) -> User:
     email = email.strip().lower()
     existing = await get_by_email(session, email)

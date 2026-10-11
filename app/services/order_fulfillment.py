@@ -1,0 +1,120 @@
+import logging
+from collections import Counter
+from dataclasses import dataclass
+from datetime import datetime, timezone
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_session_maker
+from app.models.enums import GiftCardStatus, OrderStatus
+from app.repositories import inventory as inventory_repo
+from app.repositories import orders as orders_repo
+from app.repositories import users as users_repo
+from app.schemas.payment_webhook import VerifiedPayment
+from app.services.inventory import InvalidOrderItemsError, get_card_plan
+
+logger = logging.getLogger(__name__)
+MAX_ORDER_ID = 2**63 - 1
+
+
+@dataclass(frozen=True)
+class GiftCardDelivery:
+    order_id: int
+    recipient_email: str
+    gift_card_codes: tuple[str, ...]
+
+
+class OrderFulfillmentUnavailable(Exception):
+    pass
+
+
+def _get_order_id(payment: VerifiedPayment) -> int | None:
+    value = payment.metadata.get("order_id")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if 0 < value <= MAX_ORDER_ID else None
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
+        return None
+    if len(value) > 19:
+        return None
+    order_id = int(value)
+    return order_id if 0 < order_id <= MAX_ORDER_ID else None
+
+
+async def fulfill_verified_payment(
+    session: AsyncSession,
+    payment: VerifiedPayment,
+) -> GiftCardDelivery | None:
+    if payment.status != "succeeded":
+        return None
+
+    order_id = _get_order_id(payment)
+    if order_id is None:
+        logger.warning("Verified YooKassa payment has no valid order_id metadata")
+        return None
+
+    order = await orders_repo.get_for_update(session, order_id)
+    if order is None:
+        logger.warning("Verified YooKassa payment refers to an unknown order")
+        return None
+    if order.status != OrderStatus.pending_payment:
+        return None
+
+    if payment.amount.currency != "RUB" or payment.amount.value != order.total_amount_rub:
+        logger.warning("Verified YooKassa payment amount does not match the order")
+        return None
+
+    try:
+        expected_cards = Counter(
+            {
+                nominal: len(prices)
+                for nominal, prices in get_card_plan(order.items).items()
+            }
+        )
+    except InvalidOrderItemsError as exc:
+        raise OrderFulfillmentUnavailable(
+            "Order items cannot be used for gift card delivery"
+        ) from exc
+
+    cards = await inventory_repo.lock_reserved_cards_for_order(session, order.id)
+    actual_cards = Counter(card.nominal_usd for card in cards)
+    if not cards or actual_cards != expected_cards:
+        raise OrderFulfillmentUnavailable(
+            "Reserved gift cards do not match the order"
+        )
+
+    user = await users_repo.get_by_id(session, order.user_id)
+    if user is None:
+        raise OrderFulfillmentUnavailable("Order owner was not found")
+
+    try:
+        gift_card_codes = tuple(
+            card.code_encrypted.decode("utf-8") for card in cards
+        )
+    except UnicodeDecodeError as exc:
+        raise OrderFulfillmentUnavailable(
+            "Reserved gift card code is not valid UTF-8"
+        ) from exc
+
+    for card in cards:
+        card.status = GiftCardStatus.sold
+    order.status = OrderStatus.paid
+    order.paid_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    return GiftCardDelivery(
+        order_id=order.id,
+        recipient_email=user.email,
+        gift_card_codes=gift_card_codes,
+    )
+
+
+async def mark_order_delivered(order_id: int) -> None:
+    async with get_session_maker()() as session:
+        order = await orders_repo.get_for_update(session, order_id)
+        if order is None or order.status != OrderStatus.paid:
+            return
+        order.status = OrderStatus.delivered
+        order.email_sent_at = datetime.now(timezone.utc)
+        await session.commit()
