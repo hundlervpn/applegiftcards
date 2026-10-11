@@ -1,0 +1,33 @@
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.money import Rub
+
+
+class PaymentAmount(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    value: Rub
+    currency: str = Field(min_length=3, max_length=3)
+
+
+class NotificationPayment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(min_length=1, max_length=64)
+    status: str = Field(min_length=1, max_length=32)
+    amount: PaymentAmount
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class YooKassaNotification(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: Literal["notification"]
+    event: str = Field(min_length=1, max_length=64)
+    object: NotificationPayment
+
+
+class VerifiedPayment(NotificationPayment):
+    pass
