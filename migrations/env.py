@@ -22,6 +22,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import model modules here so they register on Base.metadata before autogenerate.
+import app.models  # noqa: F401
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
