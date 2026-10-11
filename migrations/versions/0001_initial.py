@@ -60,7 +60,12 @@ def upgrade() -> None:
             server_default=sa.text("'pending_payment'::order_status"),
             nullable=False,
         ),
-        sa.Column("items", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "items",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            comment='[{"nominal_usd":10,"quantity":2,"price_rub":1000.00}]',
+        ),
         sa.Column("total_amount_rub", sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column(
             "reserved_until",
@@ -92,10 +97,6 @@ def upgrade() -> None:
     )
     op.create_index("ix_orders_status_reserved_until", "orders", ["status", "reserved_until"])
     op.create_index("ix_orders_user_id", "orders", ["user_id"])
-    op.get_bind().exec_driver_sql(
-        "COMMENT ON COLUMN orders.items IS "
-        "'[{\"nominal_usd\":10,\"quantity\":2,\"price_rub\":1000.00}]'"
-    )
     op.create_table(
         "gift_cards",
         sa.Column("id", sa.BigInteger(), sa.Identity(always=False), nullable=False),

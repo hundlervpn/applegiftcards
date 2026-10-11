@@ -1,9 +1,10 @@
+from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from app.money import kopecks_to_yookassa_rub
+from app.money import decimal_to_yookassa_rub
 
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 
@@ -29,7 +30,7 @@ async def create_payment(
     shop_id: str,
     secret_key: str,
     order_id: int,
-    amount_kopecks: int,
+    amount_rub: Decimal,
     return_url: str,
     currency: str = "RUB",
     api_url: str = YOOKASSA_API_URL,
@@ -38,7 +39,7 @@ async def create_payment(
     idempotence_key = str(uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}"))
     payload = {
         "amount": {
-            "value": kopecks_to_yookassa_rub(amount_kopecks),
+            "value": decimal_to_yookassa_rub(amount_rub),
             "currency": currency,
         },
         "capture": True,

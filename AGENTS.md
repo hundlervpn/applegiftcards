@@ -36,6 +36,6 @@ Client → api/ (HTTP, thin routes) → services/ (business logic) → repositor
 
 ### Деньги (RUB)
 
-- Везде **копейки**: `int`, без `float` / `Decimal` в API, сервисах и БД (`BIGINT`, суффикс поля `*_kopecks`, напр. `amount_kopecks`, `price_kopecks`).
-- В JSON и Pydantic — целое число; для валидации DTO можно `from app.money import Kopecks`.
-- Перевод в рубли со строкой `"123.45"` — только на **границах** с внешними системами (YooKassa): `app.money.kopecks_to_yookassa_rub`.
+- Везде **рубли с двумя знаками**: `Decimal`, без `float` в API, сервисах и БД (`Numeric(12, 2)`, суффикс поля `*_rub`, напр. `total_amount_rub`, `price_rub`).
+- В JSON и Pydantic — число (или строка, парсится в `Decimal`); для валидации DTO можно `from app.money import Rub`.
+- Строка `"123.45"` для YooKassa `amount.value`: `app.money.decimal_to_yookassa_rub`.
