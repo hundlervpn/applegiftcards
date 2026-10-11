@@ -49,7 +49,11 @@ class Order(Base):
         server_default=text("'pending_payment'::order_status"),
         nullable=False,
     )
-    items: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    items: Mapped[list[Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment='[{"nominal_usd":10,"quantity":2,"price_rub":1000.00}]',
+    )
     total_amount_rub: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     reserved_until: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

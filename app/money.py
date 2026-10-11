@@ -1,15 +1,16 @@
-"""Денежные суммы: целое число копеек (RUB) во всём проекте."""
+"""Денежные суммы в рублях (RUB) во всём проекте."""
 
+from decimal import Decimal
 from typing import Annotated
 
 from pydantic import Field
 
-# API, сервисы, БД — только int в копейках; не float и не Decimal.
-Kopecks = Annotated[int, Field(ge=1, description="Сумма в копейках (RUB)")]
+# API, сервисы, БД — Decimal (Numeric(12, 2)); не float.
+Rub = Annotated[Decimal, Field(gt=0, description="Сумма в рублях (RUB), до 2 знаков после запятой")]
 
 
-def kopecks_to_yookassa_rub(kopecks: int) -> str:
+def decimal_to_yookassa_rub(amount: Decimal) -> str:
     """Строка рублей с копейками для YooKassa amount.value."""
-    if kopecks <= 0:
-        raise ValueError("kopecks must be positive")
-    return f"{kopecks // 100}.{kopecks % 100:02d}"
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    return f"{amount.quantize(Decimal('0.01')):.2f}"
