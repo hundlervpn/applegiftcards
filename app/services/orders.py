@@ -24,7 +24,7 @@ async def create_one_time_order(
     session: AsyncSession,
     email: str,
     nominal_usd: int,
-) -> int:
+) -> Order:
     price = await prices_repo.get_by_nominal(session, nominal_usd)
     if price is None:
         raise NominalNotForSaleError(nominal_usd)
@@ -47,8 +47,7 @@ async def create_one_time_order(
     )
     try:
         await reserve_gift_cards_for_order(session, order)
-        await session.commit()
     except Exception:
         await session.rollback()
         raise
-    return order.id
+    return order

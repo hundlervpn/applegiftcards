@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
 from app.models.price import ALLOWED_NOMINALS
 
@@ -18,3 +18,4 @@ class OneTimeOrderCreate(BaseModel):
 
 class OneTimeOrderResponse(BaseModel):
     order_id: int
+    payment_url: HttpUrl

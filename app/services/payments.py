@@ -2,7 +2,7 @@ from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, HttpUrl, ValidationError
 
 from app.money import decimal_to_yookassa_rub
 
@@ -10,7 +10,7 @@ YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 
 
 class PaymentSession(BaseModel):
-    payment_url: str
+    payment_url: HttpUrl
     external_payment_id: str
 
 
@@ -26,6 +26,10 @@ class AcquirerBadResponseError(AcquirerError):
     pass
 
 
+class AcquirerConfigurationError(AcquirerError):
+    pass
+
+
 async def create_payment(
     shop_id: str,
     secret_key: str,
@@ -36,6 +40,11 @@ async def create_payment(
     api_url: str = YOOKASSA_API_URL,
     timeout_seconds: float = 10.0,
 ) -> PaymentSession:
+    if not shop_id or not secret_key:
+        raise AcquirerConfigurationError(
+            "YooKassa shop ID and secret key must be configured"
+        )
+
     idempotence_key = str(uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}"))
     payload = {
         "amount": {
