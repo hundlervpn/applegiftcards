@@ -3,6 +3,8 @@ from uuid import NAMESPACE_URL, uuid5
 import httpx
 from pydantic import BaseModel, ValidationError
 
+from app.money import kopecks_to_yookassa_rub
+
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 
 
@@ -27,19 +29,16 @@ async def create_payment(
     shop_id: str,
     secret_key: str,
     order_id: int,
-    amount_minor: int,
+    amount_kopecks: int,
     return_url: str,
     currency: str = "RUB",
     api_url: str = YOOKASSA_API_URL,
     timeout_seconds: float = 10.0,
 ) -> PaymentSession:
-    if amount_minor <= 0:
-        raise ValueError("amount_minor must be positive")
-
     idempotence_key = str(uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}"))
     payload = {
         "amount": {
-            "value": f"{amount_minor // 100}.{amount_minor % 100:02d}",
+            "value": kopecks_to_yookassa_rub(amount_kopecks),
             "currency": currency,
         },
         "capture": True,
