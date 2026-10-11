@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.order import OneTimeOrderCreate, OneTimeOrderResponse
+from app.services.inventory import GiftCardUnavailableError
 from app.services.orders import NominalNotForSaleError, create_one_time_order as create_one_time_order_record
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -21,4 +22,9 @@ async def create_one_time_order(
         )
     except NominalNotForSaleError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GiftCardUnavailableError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="No gift cards are available for this nominal",
+        ) from exc
     return OneTimeOrderResponse(order_id=order_id)
