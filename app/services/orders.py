@@ -7,6 +7,7 @@ from app.models.order import Order
 from app.repositories import orders as orders_repo
 from app.repositories import prices as prices_repo
 from app.repositories import users as users_repo
+from app.services.inventory import reserve_gift_cards_for_order
 
 
 class NominalNotForSaleError(Exception):
@@ -44,5 +45,10 @@ async def create_one_time_order(
             total_amount_rub=price.price_rub,
         ),
     )
-    await session.commit()
+    try:
+        await reserve_gift_cards_for_order(session, order)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
     return order.id
