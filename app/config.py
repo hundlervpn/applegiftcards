@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     telegram_admin_chat_id: str = ""
     low_stock_threshold: int = 3
 
+    jwt_secret_key: str = "dev-insecure-jwt-secret-change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:
