@@ -2,6 +2,7 @@ import logging
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,9 @@ class GiftCardDelivery:
     order_id: int
     recipient_email: str
     gift_card_codes: tuple[str, ...]
+    items: tuple[dict, ...] = ()
+    total_amount_rub: Decimal | None = None
+    created_at: datetime | None = None
 
 
 class OrderFulfillmentUnavailable(Exception):
@@ -107,6 +111,9 @@ async def fulfill_verified_payment(
         order_id=order.id,
         recipient_email=user.email,
         gift_card_codes=gift_card_codes,
+        items=tuple(order.items),
+        total_amount_rub=order.total_amount_rub,
+        created_at=order.created_at,
     )
 
 

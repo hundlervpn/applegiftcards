@@ -57,11 +57,7 @@ async def receive_payment_webhook(
         ) from exc
 
     if delivery is not None:
-        schedule_gift_card_code_email(
-            background_tasks,
-            delivery.recipient_email,
-            "\n".join(delivery.gift_card_codes),
-        )
+        schedule_gift_card_code_email(background_tasks, delivery)
         background_tasks.add_task(mark_order_delivered, delivery.order_id)
 
     return Response(status_code=200)
