@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = False
     smtp_timeout_seconds: float = 10.0
 
+    telegram_bot_token: str = ""
+    telegram_admin_chat_id: str = ""
+    low_stock_threshold: int = 3
+
 
 @lru_cache
 def get_settings() -> Settings:

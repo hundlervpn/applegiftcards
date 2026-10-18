@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.background_tasks import schedule_gift_card_code_email
+from app.api.background_tasks import schedule_gift_card_code_email, schedule_low_stock_alert
 from app.config import Settings, get_settings
 from app.db.session import get_db
 from app.schemas.payment_webhook import YooKassaNotification
@@ -63,5 +63,7 @@ async def receive_payment_webhook(
             "\n".join(delivery.gift_card_codes),
         )
         background_tasks.add_task(mark_order_delivered, delivery.order_id)
+        # Карты переведены в sold — проверяем остатки и оповещаем админа.
+        schedule_low_stock_alert(background_tasks)
 
     return Response(status_code=200)
