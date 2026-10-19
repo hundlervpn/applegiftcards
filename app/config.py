@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     app_name: str = "AWE"
     debug: bool = False
     database_url: str
+    admin_api_token: SecretStr = SecretStr("")
 
     yookassa_shop_id: str = ""
     yookassa_secret_key: str = ""
