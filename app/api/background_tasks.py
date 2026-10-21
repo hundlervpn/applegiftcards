@@ -2,17 +2,16 @@ from fastapi import BackgroundTasks
 
 from app.services.alerts import notify_low_stock_task
 from app.services.email import send_gift_card_code_email
+from app.services.order_fulfillment import GiftCardDelivery
 
 
 def schedule_gift_card_code_email(
     background_tasks: BackgroundTasks,
-    recipient_email: str,
-    gift_card_code: str,
+    delivery: GiftCardDelivery,
 ) -> None:
     background_tasks.add_task(
         send_gift_card_code_email,
-        recipient_email,
-        gift_card_code,
+        delivery,
     )
 
 
