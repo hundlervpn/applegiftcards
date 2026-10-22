@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from app.db.session import dispose_engine, get_session_maker
 from app.models.gift_card import GiftCard
 from app.models.price import Price
+from app.services.crypto import encrypt_code
 
 CARDS_PER_NOMINAL = 4
 
@@ -54,7 +55,7 @@ async def main() -> None:
                     session.add(
                         GiftCard(
                             nominal_usd=nominal_usd,
-                            code_encrypted=code.encode("utf-8"),
+                            code_encrypted=encrypt_code(code),
                         )
                     )
                     card_count += 1

@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
 
+    # Fernet key (url-safe base64 of 32 bytes). Empty → encrypt/decrypt fail at use.
+    fernet_key: SecretStr = SecretStr("")
+
 
 @lru_cache
 def get_settings() -> Settings:
