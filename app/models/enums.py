@@ -14,3 +14,9 @@ class GiftCardStatus(str, enum.Enum):
     reserved = "reserved"
     sold = "sold"
     blocked = "blocked"
+
+
+class SubscriptionStatus(str, enum.Enum):
+    active = "active"
+    past_due = "past_due"
+    cancelled = "cancelled"
