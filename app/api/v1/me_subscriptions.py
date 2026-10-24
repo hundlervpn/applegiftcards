@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.openapi import (
+    FORBIDDEN_RESPONSE,
+    SUBSCRIPTIONS_RESPONSE,
+    UNAUTHORIZED_RESPONSE,
+    error_response,
+)
 from app.config import Settings, get_settings
 from app.db.session import get_db
 from app.dependencies import CurrentUser
@@ -10,7 +16,27 @@ from app.services.user_subscriptions import UserSubscriptionsUnavailable, list_u
 router = APIRouter(prefix="/me", tags=["me"])
 
 
-@router.get("/subscriptions", response_model=SubscriptionListResponse)
+@router.get(
+    "/subscriptions",
+    response_model=SubscriptionListResponse,
+    summary="Подписки текущего пользователя",
+    description=(
+        "Возвращает только подписки владельца JWT access-токена, от новых к старым, "
+        "со статусами active, past_due и cancelled. Цена берётся из текущего каталога цен в рублях. "
+        "Номер банковской карты доступен только как **** 4242. Если маска недоступна "
+        "или способ оплаты не является банковской картой, card_mask равен null; "
+        "сами подписки остаются доступны. Идентификатор платёжного метода не возвращается."
+    ),
+    responses={
+        200: SUBSCRIPTIONS_RESPONSE,
+        401: UNAUTHORIZED_RESPONSE,
+        403: FORBIDDEN_RESPONSE,
+        503: error_response(
+            "Не удалось прочитать подписки из базы данных.",
+            unavailable="Subscriptions are unavailable",
+        ),
+    },
+)
 async def get_my_subscriptions(
     user: CurrentUser,
     session: AsyncSession = Depends(get_db),

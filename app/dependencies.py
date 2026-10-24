@@ -10,7 +10,12 @@ from app.models.user import User
 from app.services import tokens
 from app.services.tokens import TokenDecodeError, TokenExpiredError
 
-_bearer_scheme = HTTPBearer(auto_error=False)
+_bearer_scheme = HTTPBearer(
+    scheme_name="BearerAuth",
+    bearerFormat="JWT",
+    description="JWT access_token из /api/v1/auth/register или /api/v1/auth/login. Вставьте только токен.",
+    auto_error=False,
+)
 
 
 async def get_current_user(
