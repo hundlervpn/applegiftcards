@@ -45,3 +45,18 @@ async def lock_available_cards(
         .with_for_update(skip_locked=True)
     )
     return list((await session.scalars(statement)).all())
+
+
+async def list_sold_for_orders(
+    session: AsyncSession,
+    order_ids: list[int],
+) -> list[GiftCard]:
+    statement = (
+        select(GiftCard)
+        .where(
+            GiftCard.order_id.in_(order_ids),
+            GiftCard.status == GiftCardStatus.sold,
+        )
+        .order_by(GiftCard.order_id, GiftCard.id)
+    )
+    return list((await session.scalars(statement)).all())
