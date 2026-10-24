@@ -12,8 +12,18 @@ def _normalize_email(value: object) -> object:
 
 
 class UserRegister(BaseModel):
-    email: EmailStr = Field(max_length=254)
-    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=128)
+    email: EmailStr = Field(
+        max_length=254,
+        description="Email пользователя; пробелы по краям удаляются, регистр приводится к нижнему",
+        examples=["buyer@example.com"],
+    )
+    password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        max_length=128,
+        description="Не менее 8 символов, минимум одна буква и цифра, не более 72 байт UTF-8",
+        examples=["DemoPass123"],
+        json_schema_extra={"format": "password", "writeOnly": True},
+    )
 
     @field_validator("email", mode="before")
     @classmethod
@@ -33,8 +43,18 @@ class UserRegister(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr = Field(max_length=254)
-    password: str = Field(min_length=1, max_length=128)
+    email: EmailStr = Field(
+        max_length=254,
+        description="Email зарегистрированного пользователя; нормализуется перед проверкой",
+        examples=["buyer@example.com"],
+    )
+    password: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Пароль пользователя",
+        examples=["DemoPass123"],
+        json_schema_extra={"format": "password", "writeOnly": True},
+    )
 
     @field_validator("email", mode="before")
     @classmethod
@@ -43,10 +63,14 @@ class UserLogin(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
+    access_token: str = Field(description="JWT для доступа к /me/* через заголовок Authorization: Bearer")
+    refresh_token: str = Field(description="JWT для обновления пары токенов через /auth/refresh")
+    token_type: str = Field(default="bearer", description="Схема авторизации для access-токена")
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=1)
+    refresh_token: str = Field(
+        min_length=1,
+        description="Refresh-токен из ответа register, login или refresh; access-токен не подходит",
+        examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo-refresh.signature"],
+    )
