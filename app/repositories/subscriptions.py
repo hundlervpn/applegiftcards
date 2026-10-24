@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import SubscriptionStatus
+from app.models.price import Price
 from app.models.subscription import Subscription
 
 
@@ -18,6 +20,16 @@ class SubscriptionRepository:
 
     async def get_by_id(self, subscription_id: int) -> Subscription | None:
         return await self._session.get(Subscription, subscription_id)
+
+    async def list_for_user_with_prices(self, user_id: int) -> list[tuple[Subscription, Decimal]]:
+        statement = (
+            select(Subscription, Price.price_rub)
+            .join(Price, Price.nominal_usd == Subscription.nominal_usd)
+            .where(Subscription.user_id == user_id)
+            .order_by(Subscription.created_at.desc(), Subscription.id.desc())
+        )
+        rows = await self._session.execute(statement)
+        return [(subscription, price_rub) for subscription, price_rub in rows]
 
     async def list_active_due_for_billing(
         self,
