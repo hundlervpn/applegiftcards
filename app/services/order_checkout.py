@@ -18,6 +18,8 @@ async def create_one_time_order_checkout(
     email: str,
     nominal_usd: int,
     settings: Settings,
+    *,
+    is_subscription: bool = False,
 ) -> OneTimeOrderCheckout:
     try:
         order = await create_one_time_order(
@@ -31,6 +33,7 @@ async def create_one_time_order_checkout(
             order_id=order.id,
             amount_rub=order.total_amount_rub,
             return_url=settings.payment_return_url,
+            save_payment_method=is_subscription,
         )
         await session.commit()
     except Exception:

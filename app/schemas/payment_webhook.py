@@ -12,6 +12,13 @@ class PaymentAmount(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
 
 
+class PaymentMethod(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str | None = None
+    saved: bool | None = None
+
+
 class NotificationPayment(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -19,6 +26,7 @@ class NotificationPayment(BaseModel):
     status: str = Field(min_length=1, max_length=32)
     amount: PaymentAmount
     metadata: dict[str, Any] = Field(default_factory=dict)
+    payment_method: PaymentMethod | None = None
 
 
 class YooKassaNotification(BaseModel):
