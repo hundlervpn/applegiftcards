@@ -14,6 +14,12 @@ from app.repositories import users as users_repo
 from app.schemas.payment_webhook import VerifiedPayment
 from app.services.crypto import GiftCardCryptoError, decrypt_code
 from app.services.inventory import InvalidOrderItemsError, get_card_plan
+from app.services.subscriptions import (
+    SubscriptionActivationError,
+    activate_subscription,
+    is_subscription_payment,
+    saved_payment_method_id,
+)
 
 logger = logging.getLogger(__name__)
 MAX_ORDER_ID = 2**63 - 1
@@ -101,6 +107,33 @@ async def fulfill_verified_payment(
         raise OrderFulfillmentUnavailable(
             "Reserved gift card code could not be decrypted"
         ) from exc
+
+    if is_subscription_payment(payment):
+        # Та же транзакция, что и pending_payment → paid. Повтор вебхука
+        # видит заказ уже не pending и сюда не доходит.
+        nominals = list(expected_cards)
+        if len(nominals) != 1:
+            logger.warning("Subscription payment does not have a single nominal")
+            raise OrderFulfillmentUnavailable(
+                "Subscription order must contain a single nominal"
+            )
+        payment_method_id = saved_payment_method_id(payment)
+        if payment_method_id is None:
+            logger.warning("Subscription payment has no saved payment method")
+            raise OrderFulfillmentUnavailable(
+                "Subscription payment has no saved payment method"
+            )
+        try:
+            await activate_subscription(
+                session,
+                user_id=order.user_id,
+                nominal_usd=nominals[0],
+                payment_method_id=payment_method_id,
+            )
+        except SubscriptionActivationError as exc:
+            raise OrderFulfillmentUnavailable(
+                "Subscription could not be activated"
+            ) from exc
 
     for card in cards:
         card.status = GiftCardStatus.sold

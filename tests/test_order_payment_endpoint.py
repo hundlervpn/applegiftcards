@@ -158,6 +158,7 @@ class OrderCheckoutServiceTests(unittest.IsolatedAsyncioTestCase):
             order_id=42,
             amount_rub=Decimal("999.00"),
             return_url="https://example.test/payment/complete",
+            save_payment_method=False,
         )
         self.session.commit.assert_awaited_once()
         self.session.rollback.assert_not_awaited()

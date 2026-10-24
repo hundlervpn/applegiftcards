@@ -28,6 +28,7 @@ async def create_one_time_order(
             email=str(body.email),
             nominal_usd=body.nominal_usd,
             settings=settings,
+            is_subscription=body.is_subscription,
         )
     except NominalNotForSaleError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

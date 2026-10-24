@@ -39,6 +39,7 @@ async def create_payment(
     currency: str = "RUB",
     api_url: str = YOOKASSA_API_URL,
     timeout_seconds: float = 10.0,
+    save_payment_method: bool = False,
 ) -> PaymentSession:
     if not shop_id or not secret_key:
         raise AcquirerConfigurationError(
@@ -46,6 +47,9 @@ async def create_payment(
         )
 
     idempotence_key = str(uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}"))
+    metadata = {"order_id": str(order_id)}
+    if save_payment_method:
+        metadata["is_subscription"] = "true"
     payload = {
         "amount": {
             "value": decimal_to_yookassa_rub(amount_rub),
@@ -57,8 +61,10 @@ async def create_payment(
             "return_url": return_url,
         },
         "description": f"Заказ №{order_id}",
-        "metadata": {"order_id": str(order_id)},
+        "metadata": metadata,
     }
+    if save_payment_method:
+        payload["save_payment_method"] = True
     try:
         async with httpx.AsyncClient(
             auth=httpx.BasicAuth(shop_id, secret_key),

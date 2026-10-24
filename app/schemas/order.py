@@ -6,6 +6,7 @@ from app.models.price import ALLOWED_NOMINALS
 class OneTimeOrderCreate(BaseModel):
     email: EmailStr = Field(max_length=254)
     nominal_usd: int
+    is_subscription: bool = False
 
     @field_validator("nominal_usd")
     @classmethod
