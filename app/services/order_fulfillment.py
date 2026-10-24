@@ -12,6 +12,7 @@ from app.repositories import inventory as inventory_repo
 from app.repositories import orders as orders_repo
 from app.repositories import users as users_repo
 from app.schemas.payment_webhook import VerifiedPayment
+from app.services.crypto import GiftCardCryptoError, decrypt_code
 from app.services.inventory import InvalidOrderItemsError, get_card_plan
 
 logger = logging.getLogger(__name__)
@@ -94,11 +95,11 @@ async def fulfill_verified_payment(
 
     try:
         gift_card_codes = tuple(
-            card.code_encrypted.decode("utf-8") for card in cards
+            decrypt_code(card.code_encrypted) for card in cards
         )
-    except UnicodeDecodeError as exc:
+    except GiftCardCryptoError as exc:
         raise OrderFulfillmentUnavailable(
-            "Reserved gift card code is not valid UTF-8"
+            "Reserved gift card code could not be decrypted"
         ) from exc
 
     for card in cards:
