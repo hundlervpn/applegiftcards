@@ -13,6 +13,7 @@ from app.api.v1.me import router as me_router
 from app.api.v1.me_subscriptions import router as me_subscriptions_router
 from app.api.v1.payment_webhook import router as payment_webhook_router
 from app.api.v1.orders import router as orders_router
+from app.api.v1.subscriptions import router as subscriptions_router
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.services.scheduler import run_billing_scheduler
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(me_router, prefix="/api/v1")
     app.include_router(me_subscriptions_router, prefix="/api/v1")
+    app.include_router(subscriptions_router, prefix="/api/v1")
     return app
 
 

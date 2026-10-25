@@ -18,6 +18,13 @@ API_TAGS = [
             "Пользователь определяется по JWT access-токену; выбирать чужой user_id нельзя."
         ),
     },
+    {
+        "name": "subscriptions",
+        "description": (
+            "Автопродление Apple Gift Card. Отмена доступна только владельцу подписки "
+            "по JWT access-токену и останавливает будущие автосписания, включая ретраи past_due."
+        ),
+    },
 ]
 
 TOKEN_PAIR_EXAMPLE = {
@@ -105,6 +112,27 @@ SUBSCRIPTIONS_RESPONSE = {
 }
 
 
+SUBSCRIPTION_CANCELLATION_RESPONSE = {
+    "description": (
+        "Автопродление отменено. Повторный вызов возвращает тот же статус и то же время отмены."
+    ),
+    "content": {
+        "application/json": {
+            "examples": {
+                "cancelled": {
+                    "summary": "Подписка отменена",
+                    "value": {
+                        "id": 42,
+                        "status": "cancelled",
+                        "updated_at": "2026-10-25T16:32:00Z",
+                    },
+                },
+            },
+        },
+    },
+}
+
+
 def error_response(description: str, *, bearer: bool = False, **examples: str) -> dict[str, Any]:
     response: dict[str, Any] = {
         "model": ErrorResponse,
@@ -146,6 +174,16 @@ INVALID_CREDENTIALS_RESPONSE = error_response(
     "Неверный email или пароль либо пользователь неактивен. Ответ не раскрывает существование email.",
     bearer=True,
     invalid="Invalid email or password",
+)
+
+SUBSCRIPTION_FORBIDDEN_RESPONSE = error_response(
+    "Подписка есть, но принадлежит другому пользователю.",
+    forbidden="Forbidden",
+)
+
+SUBSCRIPTION_NOT_FOUND_RESPONSE = error_response(
+    "Подписка с таким идентификатором не найдена.",
+    missing="Subscription not found",
 )
 
 INVALID_REFRESH_RESPONSE = error_response(

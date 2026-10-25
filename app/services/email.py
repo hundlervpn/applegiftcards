@@ -1,5 +1,6 @@
 import logging
-from datetime import timezone
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -188,6 +189,62 @@ async def send_gift_card_code_email(delivery: GiftCardDelivery) -> None:
 
     message = build_gift_card_email(delivery, from_email=settings.smtp_from_email)
     await _deliver(message, failure_log="Failed to send Apple Gift Card email")
+
+
+@dataclass(frozen=True)
+class SubscriptionCancelledNotice:
+    subscription_id: int
+    recipient_email: str
+    nominal_usd: int
+    cancelled_at: datetime
+
+
+def build_subscription_cancelled_email(
+    notice: SubscriptionCancelledNotice,
+    from_email: str,
+) -> EmailMessage:
+    """Письмо о том, что владелец сам остановил автопродление."""
+    if not notice.recipient_email or not from_email:
+        raise ValueError("recipient and sender are required")
+    cancelled_at = notice.cancelled_at
+    if cancelled_at.tzinfo is None or cancelled_at.tzinfo.utcoffset(cancelled_at) is None:
+        raise ValueError("cancellation time must be timezone-aware")
+
+    cancelled_at_text = cancelled_at.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+    subject = f"Автопродление подписки №{notice.subscription_id} отменено"
+    plain = (
+        "Автопродление подписки в «Окне в Европу» отменено.\n\n"
+        f"Подписка №{notice.subscription_id} на Apple Gift Card ${notice.nominal_usd} "
+        f"отменена {cancelled_at_text}.\n"
+        "Дальнейшие автосписания по этой подписке выполняться не будут.\n"
+        "Уже оплаченный период и выданные коды сохраняются.\n\n"
+        "Если вы не отменяли подписку, напишите в поддержку."
+    )
+    html = _templates().get_template("email/subscription_cancelled.html").render(
+        subject=subject,
+        preheader="Автопродление подписки отменено",
+        subscription_id=notice.subscription_id,
+        nominal_usd=notice.nominal_usd,
+        cancelled_at=cancelled_at_text,
+        recipient_email=notice.recipient_email,
+    )
+    message = EmailMessage()
+    message["From"] = from_email
+    message["To"] = notice.recipient_email
+    message["Subject"] = subject
+    message.set_content(plain)
+    message.add_alternative(html, subtype="html")
+    return message
+
+
+async def send_subscription_cancelled_email(notice: SubscriptionCancelledNotice) -> None:
+    settings = get_settings()
+    _smtp_password(settings)
+    if not notice.recipient_email:
+        raise ValueError("recipient email is required")
+
+    message = build_subscription_cancelled_email(notice, from_email=settings.smtp_from_email)
+    await _deliver(message, failure_log="Failed to send subscription cancellation email")
 
 
 async def send_dunning_notice(notice: DunningNotice) -> None:
