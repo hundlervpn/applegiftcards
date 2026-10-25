@@ -1,0 +1,87 @@
+meta {
+  name: 17 My subscriptions
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/api/v1/me/subscriptions
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{authToken}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("17 My subscriptions", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body.subscriptions).to.have.lengthOf(1);
+      const subscription = body.subscriptions[0];
+      expect(subscription.status).to.equal('active');
+      expect(subscription.nominal_usd).to.equal(Number(get('testNominalUsd')));
+      expect(String(subscription.price_rub)).to.equal(String(get('amountRub')));
+      if (subscription.card_mask !== null) expect(subscription.card_mask).to.match(/^\*{4} [0-9]{4}$/);
+      expect(subscription).not.to.have.property('payment_method_id');
+      set('testSubscriptionId', String(subscription.id));
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  17 My subscriptions
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/me/subscriptions
+    method: GET
+    headers: {
+      Accept: application/json
+      Authorization: Bearer {{authToken}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "subscriptions": [
+            {
+              "id": 42,
+              "nominal_usd": 10,
+              "status": "active",
+              "card_mask": "**** 4242",
+              "next_billing_at": "2026-11-25T12:00:00Z",
+              "price_rub": "999.00",
+              "created_at": "2026-10-26T12:00:00Z"
+            }
+          ]
+        }
+      '''
+    }
+  }
+}

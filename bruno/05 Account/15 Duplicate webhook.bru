@@ -1,0 +1,72 @@
+meta {
+  name: 15 Duplicate webhook
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/api/v1/payments/webhook
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {{notificationBody}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("15 Duplicate webhook", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Повтор того же уведомления: 200 без выдачи второй карты.
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/payments/webhook
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {{notificationBody}}
+    }
+  }
+
+  response: {
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: text
+      content: '''
+
+      '''
+    }
+  }
+}

@@ -1,0 +1,81 @@
+meta {
+  name: 21 Final stock
+  type: http
+  seq: 21
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/stats
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  X-Admin-Token: {{adminToken}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("21 Final stock", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      const before = JSON.parse(get('stockBefore'));
+      const after = body.nominals.find(item => item.nominal_usd === Number(get('testNominalUsd')));
+      expect(after.available).to.equal(before.available + 1);
+      expect(after.sold).to.equal(before.sold + 1);
+      expect(after.reserved).to.equal(before.reserved);
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  На изолированном тестовом складе добавлены две карты, продана ровно одна, резервов не осталось. Повтор вебхука и отмены не меняют остатки.
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/admin/stats
+    method: GET
+    headers: {
+      Accept: application/json
+      X-Admin-Token: {{adminToken}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "nominals": [
+            {
+              "nominal_usd": 10,
+              "available": 1,
+              "reserved": 0,
+              "sold": 1
+            }
+          ]
+        }
+      '''
+    }
+  }
+}

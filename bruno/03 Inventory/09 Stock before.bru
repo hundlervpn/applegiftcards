@@ -1,0 +1,79 @@
+meta {
+  name: 09 Stock before
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/stats
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  X-Admin-Token: {{adminToken}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("09 Stock before", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      const row = body.nominals.find(item => item.nominal_usd === Number(get('testNominalUsd')));
+      expect(row).to.exist;
+      set('stockBefore', JSON.stringify(row));
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  09 Stock before
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/admin/stats
+    method: GET
+    headers: {
+      Accept: application/json
+      X-Admin-Token: {{adminToken}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "nominals": [
+            {
+              "nominal_usd": 10,
+              "available": 0,
+              "reserved": 0,
+              "sold": 0
+            }
+          ]
+        }
+      '''
+    }
+  }
+}

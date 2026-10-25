@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "AWE API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

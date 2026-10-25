@@ -1,0 +1,70 @@
+meta {
+  name: 23 Invalid admin token
+  type: http
+  seq: 23
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/stats
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  X-Admin-Token: {{adminToken}}-invalid
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("23 Invalid admin token", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(403);
+      const body = res.getBody();
+      expect(body.detail).to.equal('Invalid admin token');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  23 Invalid admin token
+}
+
+example {
+  name: 403 Forbidden
+
+  request: {
+    url: {{baseUrl}}/api/v1/admin/stats
+    method: GET
+    headers: {
+      Accept: application/json
+      X-Admin-Token: {{adminToken}}-invalid
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 403
+      text: Forbidden
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "detail": "Invalid admin token"
+        }
+      '''
+    }
+  }
+}

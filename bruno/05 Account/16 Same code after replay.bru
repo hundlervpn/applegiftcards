@@ -1,0 +1,93 @@
+meta {
+  name: 16 Same code after replay
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{baseUrl}}/api/v1/me/orders?limit=10&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{authToken}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("16 Same code after replay", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body.total).to.equal(1);
+      expect(body.orders).to.have.lengthOf(1);
+      const order = body.orders[0];
+      expect(String(order.id)).to.equal(String(get('testOrderId')));
+      expect(['paid', 'delivered']).to.include(order.status);
+      expect(order.cards).to.have.lengthOf(1);
+      expect(order.cards[0].nominal_usd).to.equal(Number(get('testNominalUsd')));
+      expect(order.cards[0].code).to.be.a('string').and.not.empty;
+      expect(JSON.stringify(order.cards)).to.equal(get('deliveredCodes'));
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  16 Same code after replay
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/me/orders?limit=10&offset=0
+    method: GET
+    headers: {
+      Accept: application/json
+      Authorization: Bearer {{authToken}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "orders": [
+            {
+              "id": 123,
+              "status": "delivered",
+              "total_amount_rub": "999.00",
+              "created_at": "2026-10-26T12:00:00Z",
+              "paid_at": "2026-10-26T12:01:00Z",
+              "cards": [
+                {
+                  "nominal_usd": 10,
+                  "code": "DEMO-CODE-DO-NOT-REDEEM"
+                }
+              ]
+            }
+          ],
+          "total": 1
+        }
+      '''
+    }
+  }
+}

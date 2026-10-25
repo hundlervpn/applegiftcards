@@ -1,0 +1,79 @@
+meta {
+  name: 25 Duplicate email
+  type: http
+  seq: 25
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {"email":"{{runEmail}}","password":"{{testPassword}}"}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("25 Duplicate email", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(409);
+      const body = res.getBody();
+      expect(body.detail).to.equal('User with this email already exists');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  25 Duplicate email
+}
+
+example {
+  name: 409 Conflict
+
+  request: {
+    url: {{baseUrl}}/api/v1/auth/register
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"email":"{{runEmail}}","password":"{{testPassword}}"}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 409
+      text: Conflict
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "detail": "User with this email already exists"
+        }
+      '''
+    }
+  }
+}

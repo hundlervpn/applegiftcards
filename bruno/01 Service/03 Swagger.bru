@@ -1,0 +1,66 @@
+meta {
+  name: 03 Swagger
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/docs
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("03 Swagger", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body).to.include('SwaggerUIBundle');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  03 Swagger
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/docs
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: text/html
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: text
+      content: '''
+        <html><body>Swagger UI</body></html>
+      '''
+    }
+  }
+}

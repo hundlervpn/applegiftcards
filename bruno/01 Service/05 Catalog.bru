@@ -1,0 +1,77 @@
+meta {
+  name: 05 Catalog
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/catalog
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("05 Catalog", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body).to.be.an('array');
+      const nominal = body.find(item => item.nominal_usd === Number(get('testNominalUsd')));
+      expect(nominal, 'Сначала заполните prices через seed_data.py').to.exist;
+      expect(Number(nominal.price_rub)).to.be.above(0);
+      set('amountRub', String(nominal.price_rub));
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Цена выбирается из каталога, а не задаётся вручную. Номинал должен существовать в prices.
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/catalog
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        [
+          {
+            "nominal_usd": 10,
+            "price_rub": "999.00",
+            "available_count": 0,
+            "is_available": false
+          }
+        ]
+      '''
+    }
+  }
+}

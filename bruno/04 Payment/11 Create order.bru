@@ -1,0 +1,84 @@
+meta {
+  name: 11 Create order
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/orders/one-time
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {"email":"{{runEmail}}","nominal_usd":{{testNominalUsd}},"is_subscription":true}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("11 Create order", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(201);
+      const body = res.getBody();
+      expect(body.order_id).to.be.a('number').and.above(0);
+      expect(body.payment_url).to.match(/^https?:\/\//);
+      set('testOrderId', String(body.order_id));
+      set('paymentUrl', body.payment_url);
+      console.log('Откройте paymentUrl и завершите тестовую оплату: ' + body.payment_url);
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Первый заказ подписки через one-time: нужен для проверки /me/subscriptions и отмены. Для отдельной ручной проверки обычной разовой покупки скопируйте только этот запрос и задайте is_subscription=false. Полный сценарий коллекции требует true.
+}
+
+example {
+  name: 201 Created
+
+  request: {
+    url: {{baseUrl}}/api/v1/orders/one-time
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"email":"{{runEmail}}","nominal_usd":{{testNominalUsd}},"is_subscription":true}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 201
+      text: Created
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "order_id": 123,
+          "payment_url": "https://yoomoney.ru/checkout/payments/v2/contract?orderId=demo"
+        }
+      '''
+    }
+  }
+}

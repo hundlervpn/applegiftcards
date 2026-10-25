@@ -1,0 +1,74 @@
+meta {
+  name: 19 Repeat cancellation
+  type: http
+  seq: 19
+}
+
+post {
+  url: {{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{authToken}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("19 Repeat cancellation", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(String(body.id)).to.equal(String(get('testSubscriptionId')));
+      expect(body.status).to.equal('cancelled');
+      expect(body.updated_at).to.equal(get('cancelledAt'));
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  19 Repeat cancellation
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel
+    method: POST
+    headers: {
+      Accept: application/json
+      Authorization: Bearer {{authToken}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "id": 42,
+          "status": "cancelled",
+          "updated_at": "2026-10-26T12:02:00Z"
+        }
+      '''
+    }
+  }
+}

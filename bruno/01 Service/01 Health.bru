@@ -1,0 +1,85 @@
+meta {
+  name: 01 Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const runId = Date.now().toString() + '-' + Math.random().toString(16).slice(2, 8);
+  set('runId', runId);
+  set('runEmail', get('testEmail') || ('awe-' + runId + '@example.com'));
+  set('foreignEmail', 'awe-other-' + runId + '@example.com');
+  set('runStartedAt', new Date(Date.now() - 5000).toISOString());
+  set('paymentCursor', '');
+  set('paymentPolls', '0');
+  for (const key of ['authToken', 'refreshToken', 'foreignAuthToken', 'testOrderId', 'testSubscriptionId', 'paymentUrl', 'notificationBody', 'deliveredCodes', 'cancelledAt']) {
+    set(key, '');
+  }
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("01 Health", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body.status).to.equal('ok');
+      expect(body.database).to.equal('ok');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Начало полного прогона: сбрасывает временные значения, создаёт уникальный email и проверяет БД.
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/health
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "ok",
+          "database": "ok"
+        }
+      '''
+    }
+  }
+}

@@ -1,0 +1,2516 @@
+{
+  "info": {
+    "_postman_id": "ce72bdeb-e6fd-5ed9-8e7b-aad523eee9b5",
+    "name": "AWE API — purchase, webhook and account",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Только тестовый стенд. Полный прогон создаёт двух пользователей, два демо-кода, один заказ и подписку, затем отменяет её. Нужны цены в БД, ADMIN_API_TOKEN и ключи тестового магазина ЮKassa. Оплатите paymentUrl; шаг 12 ограниченно опрашивает ЮKassa. Запускайте всю коллекцию по порядку. Секреты задаются локально в окружении, а не в этом JSON. Инструкция: README.md → API-коллекции (SCRUM-30)."
+  },
+  "item": [
+    {
+      "name": "01 Service",
+      "item": [
+        {
+          "id": "351ab93e-185b-574b-9924-bd456e096a97",
+          "name": "01 Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health",
+            "description": "Начало полного прогона: сбрасывает временные значения, создаёт уникальный email и проверяет БД.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/health",
+                "description": "Начало полного прогона: сбрасывает временные значения, создаёт уникальный email и проверяет БД.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\",\n  \"database\": \"ok\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const runId = Date.now().toString() + '-' + Math.random().toString(16).slice(2, 8);",
+                  "set('runId', runId);",
+                  "set('runEmail', get('testEmail') || ('awe-' + runId + '@example.com'));",
+                  "set('foreignEmail', 'awe-other-' + runId + '@example.com');",
+                  "set('runStartedAt', new Date(Date.now() - 5000).toISOString());",
+                  "set('paymentCursor', '');",
+                  "set('paymentPolls', '0');",
+                  "for (const key of ['authToken', 'refreshToken', 'foreignAuthToken', 'testOrderId', 'testSubscriptionId', 'paymentUrl', 'notificationBody', 'deliveredCodes', 'cancelledAt']) {",
+                  "  set(key, '');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"01 Health\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.status).to.equal('ok');",
+                  "    expect(body.database).to.equal('ok');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "c2e9c1e2-d385-55d3-a834-b4bc6347458f",
+          "name": "02 OpenAPI",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/openapi.json",
+            "description": "Спецификация реальных маршрутов. Сохранённый пример сокращён.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/openapi.json",
+                "description": "Спецификация реальных маршрутов. Сохранённый пример сокращён.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"AWE\",\n    \"version\": \"0.1.0\"\n  },\n  \"paths\": {}\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"02 OpenAPI\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.openapi).to.match(/^3\\./);",
+                  "    expect(body.paths).to.have.property('/api/v1/subscriptions/{subscription_id}/cancel');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "e8bd4889-e249-544e-af28-c774af57edc1",
+          "name": "03 Swagger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/docs",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/docs",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/html"
+                }
+              ],
+              "body": "<html><body>Swagger UI</body></html>"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"03 Swagger\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.text();",
+                  "    expect(body).to.include('SwaggerUIBundle');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "397a56a0-c93b-507d-8781-ab439d001c26",
+          "name": "04 ReDoc",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/redoc",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/redoc",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/html"
+                }
+              ],
+              "body": "<html><body>ReDoc</body></html>"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"04 ReDoc\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.text();",
+                  "    expect(body).to.include('redoc');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "5266a517-d711-510d-9605-00ec36cf92cd",
+          "name": "05 Catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/catalog",
+            "description": "Цена выбирается из каталога, а не задаётся вручную. Номинал должен существовать в prices.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/catalog",
+                "description": "Цена выбирается из каталога, а не задаётся вручную. Номинал должен существовать в prices.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"nominal_usd\": 10,\n    \"price_rub\": \"999.00\",\n    \"available_count\": 0,\n    \"is_available\": false\n  }\n]"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"05 Catalog\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body).to.be.an('array');",
+                  "    const nominal = body.find(item => item.nominal_usd === Number(get('testNominalUsd')));",
+                  "    expect(nominal, 'Сначала заполните prices через seed_data.py').to.exist;",
+                  "    expect(Number(nominal.price_rub)).to.be.above(0);",
+                  "    set('amountRub', String(nominal.price_rub));",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Auth",
+      "item": [
+        {
+          "id": "d1a803c3-ced1-5f45-ae2f-f52b7bc5a633",
+          "name": "06 Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{runEmail}}\",\"password\":\"{{testPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/auth/register",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"email\":\"{{runEmail}}\",\"password\":\"{{testPassword}}\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"access_token\": \"demo-access-token\",\n  \"refresh_token\": \"demo-refresh-token\",\n  \"token_type\": \"bearer\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"06 Register\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(201);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.token_type).to.equal('bearer');",
+                  "    expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "    expect(body.refresh_token).to.be.a('string').and.not.empty;",
+                  "    set('authToken', body.access_token);",
+                  "    set('refreshToken', body.refresh_token);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "f3f1d458-68db-560c-95a6-316b6bba52f3",
+          "name": "07 Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{runEmail}}\",\"password\":\"{{testPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/auth/login",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"email\":\"{{runEmail}}\",\"password\":\"{{testPassword}}\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"access_token\": \"demo-access-token\",\n  \"refresh_token\": \"demo-refresh-token\",\n  \"token_type\": \"bearer\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"07 Login\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.token_type).to.equal('bearer');",
+                  "    expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "    expect(body.refresh_token).to.be.a('string').and.not.empty;",
+                  "    set('authToken', body.access_token);",
+                  "    set('refreshToken', body.refresh_token);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7646eab4-cf05-5f23-a346-4f1a10c99bf8",
+          "name": "08 Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/refresh",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refresh_token\":\"{{refreshToken}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/auth/refresh",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"refresh_token\":\"{{refreshToken}}\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"access_token\": \"demo-access-token\",\n  \"refresh_token\": \"demo-refresh-token\",\n  \"token_type\": \"bearer\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"08 Refresh\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.token_type).to.equal('bearer');",
+                  "    expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "    expect(body.refresh_token).to.be.a('string').and.not.empty;",
+                  "    set('authToken', body.access_token);",
+                  "    set('refreshToken', body.refresh_token);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Inventory",
+      "item": [
+        {
+          "id": "151d944a-0462-5141-9b93-3095884db22f",
+          "name": "09 Stock before",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/stats",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Admin-Token",
+                    "value": "{{adminToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/admin/stats",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"nominals\": [\n    {\n      \"nominal_usd\": 10,\n      \"available\": 0,\n      \"reserved\": 0,\n      \"sold\": 0\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"09 Stock before\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    const row = body.nominals.find(item => item.nominal_usd === Number(get('testNominalUsd')));",
+                  "    expect(row).to.exist;",
+                  "    set('stockBefore', JSON.stringify(row));",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "8222369e-6d84-51ed-9bfe-01c432a7c781",
+          "name": "10 Upload demo codes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/gift-cards/batch",
+            "description": "Только тестовый склад: добавляет два демонстрационных, непригодных для активации кода.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cards\":[{\"nominal_usd\":{{testNominalUsd}},\"codes\":[\"DEMO-{{runId}}-A\",\"DEMO-{{runId}}-B\"]}]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Admin-Token",
+                    "value": "{{adminToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/admin/gift-cards/batch",
+                "description": "Только тестовый склад: добавляет два демонстрационных, непригодных для активации кода.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"cards\":[{\"nominal_usd\":{{testNominalUsd}},\"codes\":[\"DEMO-{{runId}}-A\",\"DEMO-{{runId}}-B\"]}]}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"added\": 2\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"10 Upload demo codes\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(201);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.added).to.equal(2);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Payment",
+      "item": [
+        {
+          "id": "63c0478d-be2c-5f44-9351-517d19deb828",
+          "name": "11 Create order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/one-time",
+            "description": "Первый заказ подписки через one-time: нужен для проверки /me/subscriptions и отмены. Для отдельной ручной проверки обычной разовой покупки скопируйте только этот запрос и задайте is_subscription=false. Полный сценарий коллекции требует true.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{runEmail}}\",\"nominal_usd\":{{testNominalUsd}},\"is_subscription\":true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/orders/one-time",
+                "description": "Первый заказ подписки через one-time: нужен для проверки /me/subscriptions и отмены. Для отдельной ручной проверки обычной разовой покупки скопируйте только этот запрос и задайте is_subscription=false. Полный сценарий коллекции требует true.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"email\":\"{{runEmail}}\",\"nominal_usd\":{{testNominalUsd}},\"is_subscription\":true}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"order_id\": 123,\n  \"payment_url\": \"https://yoomoney.ru/checkout/payments/v2/contract?orderId=demo\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"11 Create order\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(201);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.order_id).to.be.a('number').and.above(0);",
+                  "    expect(body.payment_url).to.match(/^https?:\\/\\//);",
+                  "    set('testOrderId', String(body.order_id));",
+                  "    set('paymentUrl', body.payment_url);",
+                  "    console.log('Откройте paymentUrl и завершите тестовую оплату: ' + body.payment_url);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7b0cd549-5e28-5756-a007-3bc3b9e4f829",
+          "name": "12 Wait for test payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{yookassaBaseUrl}}/payments?limit=100&created_at.gte={{runStartedAt}}{{paymentCursor}}",
+            "description": "Читает платежи тестового магазина и ждёт успешной оплаты заказа. Не проводит оплату сам. При next_cursor читает следующую страницу; число запросов ограничено paymentMaxPolls. Для раннера задайте задержку 1000 мс.",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{yookassaShopId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{yookassaSecretKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{yookassaBaseUrl}}/payments?limit=100&created_at.gte={{runStartedAt}}{{paymentCursor}}",
+                "description": "Читает платежи тестового магазина и ждёт успешной оплаты заказа. Не проводит оплату сам. При next_cursor читает следующую страницу; число запросов ограничено paymentMaxPolls. Для раннера задайте задержку 1000 мс.",
+                "auth": {
+                  "type": "basic",
+                  "basic": [
+                    {
+                      "key": "username",
+                      "value": "{{yookassaShopId}}",
+                      "type": "string"
+                    },
+                    {
+                      "key": "password",
+                      "value": "{{yookassaSecretKey}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"items\": [\n    {\n      \"id\": \"2c8f7d00-0000-5000-8000-1a2b3c4d5e6f\",\n      \"status\": \"succeeded\",\n      \"paid\": true,\n      \"test\": true,\n      \"amount\": {\n        \"value\": \"999.00\",\n        \"currency\": \"RUB\"\n      },\n      \"metadata\": {\n        \"order_id\": \"123\",\n        \"is_subscription\": \"true\"\n      },\n      \"payment_method\": {\n        \"id\": \"22e12f66-000f-5000-8000-18db351245c7\",\n        \"type\": \"bank_card\",\n        \"saved\": true\n      }\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"12 Wait for test payment\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.items).to.be.an('array');",
+                  "    const attempts = Number(get('paymentPolls') || 0) + 1;",
+                  "    set('paymentPolls', String(attempts));",
+                  "    const payment = body.items.find(item => String((item.metadata || {}).order_id) === String(get('testOrderId')));",
+                  "    if (payment) {",
+                  "      expect(payment.test, 'Разрешён только тестовый магазин ЮKassa').to.equal(true);",
+                  "      expect(payment.status, 'Платёж отменён').not.to.equal('canceled');",
+                  "    }",
+                  "    if (!payment || payment.status !== 'succeeded') {",
+                  "      expect(attempts, 'Тестовая оплата не завершена: откройте paymentUrl, увеличьте paymentMaxPolls или повторите шаг').to.be.below(Number(get('paymentMaxPolls')));",
+                  "      set('paymentCursor', !payment && body.next_cursor ? '&cursor=' + encodeURIComponent(body.next_cursor) : '');",
+                  "      next('12 Wait for test payment');",
+                  "    } else {",
+                  "      expect(payment.amount.currency).to.equal('RUB');",
+                  "      expect(String(payment.amount.value)).to.equal(String(get('amountRub')));",
+                  "      expect(payment.metadata.is_subscription).to.equal('true');",
+                  "      expect(payment.payment_method.saved).to.equal(true);",
+                  "      set('testPaymentId', payment.id);",
+                  "      set('notificationBody', JSON.stringify({type: 'notification', event: 'payment.succeeded', object: payment}));",
+                  "    }",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "0fd93da1-e6c8-587a-ab76-fe540d3b8c75",
+          "name": "13 Verified webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/webhook",
+            "description": "Тело автоматически взято из ЮKassa. Бэкенд повторно проверяет платёж через API; HMAC-заголовка у ЮKassa нет.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{notificationBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/payments/webhook",
+                "description": "Тело автоматически взято из ЮKassa. Бэкенд повторно проверяет платёж через API; HMAC-заголовка у ЮKassa нет.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{{notificationBody}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": ""
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"13 Verified webhook\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Account",
+      "item": [
+        {
+          "id": "d786c81a-27b2-54fc-b535-f745734563b9",
+          "name": "14 Delivered order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/orders?limit=10&offset=0",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/me/orders?limit=10&offset=0",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"orders\": [\n    {\n      \"id\": 123,\n      \"status\": \"delivered\",\n      \"total_amount_rub\": \"999.00\",\n      \"created_at\": \"2026-10-26T12:00:00Z\",\n      \"paid_at\": \"2026-10-26T12:01:00Z\",\n      \"cards\": [\n        {\n          \"nominal_usd\": 10,\n          \"code\": \"DEMO-CODE-DO-NOT-REDEEM\"\n        }\n      ]\n    }\n  ],\n  \"total\": 1\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"14 Delivered order\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.total).to.equal(1);",
+                  "    expect(body.orders).to.have.lengthOf(1);",
+                  "    const order = body.orders[0];",
+                  "    expect(String(order.id)).to.equal(String(get('testOrderId')));",
+                  "    expect(['paid', 'delivered']).to.include(order.status);",
+                  "    expect(order.cards).to.have.lengthOf(1);",
+                  "    expect(order.cards[0].nominal_usd).to.equal(Number(get('testNominalUsd')));",
+                  "    expect(order.cards[0].code).to.be.a('string').and.not.empty;",
+                  "    set('deliveredCodes', JSON.stringify(order.cards));",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "1447bfd6-0aed-5bbd-81b1-7fd50f1ccfb3",
+          "name": "15 Duplicate webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/webhook",
+            "description": "Повтор того же уведомления: 200 без выдачи второй карты.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{notificationBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/payments/webhook",
+                "description": "Повтор того же уведомления: 200 без выдачи второй карты.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{{notificationBody}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": ""
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"15 Duplicate webhook\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "e2c8c5be-aea8-5c84-a375-08c8b8b024e6",
+          "name": "16 Same code after replay",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/orders?limit=10&offset=0",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/me/orders?limit=10&offset=0",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"orders\": [\n    {\n      \"id\": 123,\n      \"status\": \"delivered\",\n      \"total_amount_rub\": \"999.00\",\n      \"created_at\": \"2026-10-26T12:00:00Z\",\n      \"paid_at\": \"2026-10-26T12:01:00Z\",\n      \"cards\": [\n        {\n          \"nominal_usd\": 10,\n          \"code\": \"DEMO-CODE-DO-NOT-REDEEM\"\n        }\n      ]\n    }\n  ],\n  \"total\": 1\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"16 Same code after replay\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.total).to.equal(1);",
+                  "    expect(body.orders).to.have.lengthOf(1);",
+                  "    const order = body.orders[0];",
+                  "    expect(String(order.id)).to.equal(String(get('testOrderId')));",
+                  "    expect(['paid', 'delivered']).to.include(order.status);",
+                  "    expect(order.cards).to.have.lengthOf(1);",
+                  "    expect(order.cards[0].nominal_usd).to.equal(Number(get('testNominalUsd')));",
+                  "    expect(order.cards[0].code).to.be.a('string').and.not.empty;",
+                  "    expect(JSON.stringify(order.cards)).to.equal(get('deliveredCodes'));",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "097760ea-dd48-5f83-affd-b4f66d068bd7",
+          "name": "17 My subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/subscriptions",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/me/subscriptions",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"subscriptions\": [\n    {\n      \"id\": 42,\n      \"nominal_usd\": 10,\n      \"status\": \"active\",\n      \"card_mask\": \"**** 4242\",\n      \"next_billing_at\": \"2026-11-25T12:00:00Z\",\n      \"price_rub\": \"999.00\",\n      \"created_at\": \"2026-10-26T12:00:00Z\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"17 My subscriptions\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.subscriptions).to.have.lengthOf(1);",
+                  "    const subscription = body.subscriptions[0];",
+                  "    expect(subscription.status).to.equal('active');",
+                  "    expect(subscription.nominal_usd).to.equal(Number(get('testNominalUsd')));",
+                  "    expect(String(subscription.price_rub)).to.equal(String(get('amountRub')));",
+                  "    if (subscription.card_mask !== null) expect(subscription.card_mask).to.match(/^\\*{4} [0-9]{4}$/);",
+                  "    expect(subscription).not.to.have.property('payment_method_id');",
+                  "    set('testSubscriptionId', String(subscription.id));",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "2589648b-0c7b-5d98-bb59-bc33e41a3c79",
+          "name": "18 Cancel subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 42,\n  \"status\": \"cancelled\",\n  \"updated_at\": \"2026-10-26T12:02:00Z\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"18 Cancel subscription\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(String(body.id)).to.equal(String(get('testSubscriptionId')));",
+                  "    expect(body.status).to.equal('cancelled');",
+                  "    set('cancelledAt', body.updated_at);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "613f3379-ba37-5fab-9d6b-9d1e9a0733ff",
+          "name": "19 Repeat cancellation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 42,\n  \"status\": \"cancelled\",\n  \"updated_at\": \"2026-10-26T12:02:00Z\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"19 Repeat cancellation\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(String(body.id)).to.equal(String(get('testSubscriptionId')));",
+                  "    expect(body.status).to.equal('cancelled');",
+                  "    expect(body.updated_at).to.equal(get('cancelledAt'));",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "f5537a4c-2ac9-572f-8265-ea2f71e3da40",
+          "name": "20 Cancelled subscription in account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/subscriptions",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/me/subscriptions",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"subscriptions\": [\n    {\n      \"id\": 42,\n      \"nominal_usd\": 10,\n      \"status\": \"cancelled\",\n      \"card_mask\": \"**** 4242\",\n      \"next_billing_at\": \"2026-11-25T12:00:00Z\",\n      \"price_rub\": \"999.00\",\n      \"created_at\": \"2026-10-26T12:00:00Z\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"20 Cancelled subscription in account\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.subscriptions).to.have.lengthOf(1);",
+                  "    expect(String(body.subscriptions[0].id)).to.equal(String(get('testSubscriptionId')));",
+                  "    expect(body.subscriptions[0].status).to.equal('cancelled');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Stock result",
+      "item": [
+        {
+          "id": "5572d0c5-e4d9-52dc-bebd-e1186cd82346",
+          "name": "21 Final stock",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/stats",
+            "description": "На изолированном тестовом складе добавлены две карты, продана ровно одна, резервов не осталось. Повтор вебхука и отмены не меняют остатки.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Admin-Token",
+                    "value": "{{adminToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/admin/stats",
+                "description": "На изолированном тестовом складе добавлены две карты, продана ровно одна, резервов не осталось. Повтор вебхука и отмены не меняют остатки.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"nominals\": [\n    {\n      \"nominal_usd\": 10,\n      \"available\": 1,\n      \"reserved\": 0,\n      \"sold\": 1\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"21 Final stock\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(200);",
+                  "    const body = pm.response.json();",
+                  "    const before = JSON.parse(get('stockBefore'));",
+                  "    const after = body.nominals.find(item => item.nominal_usd === Number(get('testNominalUsd')));",
+                  "    expect(after.available).to.equal(before.available + 1);",
+                  "    expect(after.sold).to.equal(before.sold + 1);",
+                  "    expect(after.reserved).to.equal(before.reserved);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 Access and validation",
+      "item": [
+        {
+          "id": "54227f9e-6dca-517e-b722-0b1143431973",
+          "name": "22 Missing bearer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/orders",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/me/orders",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Not authenticated\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"22 Missing bearer\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(401);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.detail).to.equal('Not authenticated');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "9d3dea20-92fd-53b6-a8fd-61fb74ecb861",
+          "name": "23 Invalid admin token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Admin-Token",
+                "value": "{{adminToken}}-invalid"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/stats",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Admin-Token",
+                    "value": "{{adminToken}}-invalid"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/admin/stats",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Invalid admin token\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"23 Invalid admin token\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(403);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.detail).to.equal('Invalid admin token');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "92e71c3f-92a3-5d94-8fb2-f90a1367ff06",
+          "name": "24 Invalid notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/webhook",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"type\":\"notification\",\"event\":\"payment.succeeded\",\"object\":{}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/payments/webhook",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"type\":\"notification\",\"event\":\"payment.succeeded\",\"object\":{}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Invalid payment notification payload\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"24 Invalid notification\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(400);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.detail).to.equal('Invalid payment notification payload');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "983201b6-80c3-5d55-92a6-44ea89e5b733",
+          "name": "25 Duplicate email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{runEmail}}\",\"password\":\"{{testPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "409 Conflict",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/auth/register",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"email\":\"{{runEmail}}\",\"password\":\"{{testPassword}}\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"User with this email already exists\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"25 Duplicate email\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(409);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.detail).to.equal('User with this email already exists');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d035dcc8-8f3b-551b-928b-349aeb4b0da1",
+          "name": "26 Invalid refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/refresh",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refresh_token\":\"not-a-jwt\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/auth/refresh",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"refresh_token\":\"not-a-jwt\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Invalid refresh token\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"26 Invalid refresh token\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(401);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.detail).to.equal('Invalid refresh token');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "66ec76b9-6654-555c-9ca3-83da111e38d9",
+          "name": "27 Register second user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{foreignEmail}}\",\"password\":\"{{testPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/auth/register",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"email\":\"{{foreignEmail}}\",\"password\":\"{{testPassword}}\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"access_token\": \"demo-access-token\",\n  \"refresh_token\": \"demo-refresh-token\",\n  \"token_type\": \"bearer\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"27 Register second user\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(201);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "    set('foreignAuthToken', body.access_token);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "bb7b4ebe-ebcb-5f8a-8019-b651bcea48c5",
+          "name": "28 Foreign subscription forbidden",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{foreignAuthToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{foreignAuthToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel",
+                "description": "",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Forbidden\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.variables.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"28 Foreign subscription forbidden\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    expect(status).to.equal(403);",
+                  "    const body = pm.response.json();",
+                  "    expect(body.detail).to.equal('Forbidden');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
