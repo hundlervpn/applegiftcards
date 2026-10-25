@@ -48,10 +48,14 @@ async def db_engine(prepare_test_database, test_database_url: str) -> AsyncGener
     engine = create_async_engine(test_database_url)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
+    try:
+        yield engine
+    finally:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+        finally:
+            await engine.dispose()
 
 
 @pytest_asyncio.fixture
@@ -72,9 +76,11 @@ async def client(db_engine) -> AsyncGenerator[AsyncClient, None]:
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
-        yield http
-    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            yield http
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture(autouse=True)
