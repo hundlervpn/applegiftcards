@@ -45,9 +45,9 @@ class RecurringPaymentDeclined(RecurringChargeError):
 
 
 class RecurringFulfillmentError(RecurringChargeError):
-    """Касса ответила успехом, но заказ в этой транзакции собрать нельзя.
+    """Карту нельзя выдать, запрос в ЮKassa не отправлялся.
 
-    Дата биллинга не сдвигается: повтор использует тот же Idempotence-Key.
+    Дата биллинга не сдвигается.
     """
 
 
@@ -133,6 +133,23 @@ async def charge_subscription(
         await session.rollback()
         raise RecurringChargeNotAllowed("subscriber was not found")
 
+    # Строка карты держится до commit/rollback, поэтому второй воркер её не заберёт.
+    # Статус в базе меняется только вместе с оплаченным заказом.
+    cards = await inventory_repo.lock_available_cards(session, locked.nominal_usd, 1)
+    if len(cards) != 1:
+        await session.rollback()
+        raise RecurringFulfillmentError(
+            "No gift card available for the subscription nominal"
+        )
+    card = cards[0]
+    try:
+        code = decrypt_code(card.code_encrypted)
+    except GiftCardCryptoError as exc:
+        await session.rollback()
+        raise RecurringFulfillmentError(
+            "Gift card code could not be decrypted"
+        ) from exc
+
     settings = get_settings()
     idempotence_key = recurring_idempotence_key(locked.id, expected_billing_at)
     try:
@@ -188,26 +205,10 @@ async def charge_subscription(
                 paid_at=datetime.now(timezone.utc),
             ),
         )
-        cards = await inventory_repo.lock_available_cards(
-            session,
-            locked.nominal_usd,
-            1,
-        )
-        if len(cards) != 1:
-            raise RecurringFulfillmentError(
-                "No gift card available for the subscription nominal"
-            )
-        card = cards[0]
         card.status = GiftCardStatus.reserved
         card.order_id = order.id
         card.sale_price_rub = price.price_rub
         await session.flush()
-        try:
-            code = decrypt_code(card.code_encrypted)
-        except GiftCardCryptoError as exc:
-            raise RecurringFulfillmentError(
-                "Gift card code could not be decrypted"
-            ) from exc
         card.status = GiftCardStatus.sold
 
         locked.next_billing_at = expected_billing_at + _BILLING_PERIOD

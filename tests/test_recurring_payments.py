@@ -384,7 +384,7 @@ async def test_acquirer_error_does_not_create_order(db_session):
     enqueue.assert_not_called()
 
 
-async def test_empty_stock_rolls_back_and_keeps_idempotence_period(db_session):
+async def test_empty_stock_does_not_call_yookassa(db_session):
     _, subscription = await _seed(db_session, cards=0)
     capture = _Capture(_payment())
     settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
@@ -393,8 +393,7 @@ async def test_empty_stock_rolls_back_and_keeps_idempotence_period(db_session):
             await charge_subscription(db_session, subscription)
 
     await db_session.refresh(subscription)
-    assert capture.calls == 1
-    assert capture.headers["Idempotence-Key"] == _expected_key(subscription.id, AS_OF)
+    assert capture.calls == 0
     assert subscription.next_billing_at == AS_OF
     assert subscription.dunning_attempts == 2
     assert list((await db_session.scalars(select(Order))).all()) == []
@@ -413,6 +412,7 @@ async def test_undecryptable_card_rolls_back(db_session):
             await charge_subscription(db_session, subscription)
 
     await db_session.refresh(subscription)
+    assert capture.calls == 0
     assert subscription.next_billing_at == AS_OF
     card = await db_session.scalar(select(GiftCard))
     assert card.status is GiftCardStatus.available
