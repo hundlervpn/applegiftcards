@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,12 +15,25 @@ from app.api.v1.payment_webhook import router as payment_webhook_router
 from app.api.v1.orders import router as orders_router
 from app.config import get_settings
 from app.db.session import dispose_engine
+from app.services.scheduler import run_billing_scheduler
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    yield
-    await dispose_engine()
+    scheduler = asyncio.create_task(run_billing_scheduler(), name="billing-scheduler")
+    try:
+        yield
+    finally:
+        scheduler.cancel()
+        try:
+            await scheduler
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Billing scheduler stopped with an error")
+        await dispose_engine()
 
 
 def create_app() -> FastAPI:

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_admin_chat_id: str = ""
     low_stock_threshold: int = 3
+    billing_scheduler_interval_seconds: int = 600
 
     jwt_secret_key: str = "dev-insecure-jwt-secret-change-me"
     jwt_algorithm: str = "HS256"
