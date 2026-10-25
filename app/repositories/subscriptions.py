@@ -21,6 +21,15 @@ class SubscriptionRepository:
     async def get_by_id(self, subscription_id: int) -> Subscription | None:
         return await self._session.get(Subscription, subscription_id)
 
+    async def get_for_update(self, subscription_id: int) -> Subscription | None:
+        statement = (
+            select(Subscription)
+            .where(Subscription.id == subscription_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return await self._session.scalar(statement)
+
     async def list_for_user_with_prices(self, user_id: int) -> list[tuple[Subscription, Decimal]]:
         statement = (
             select(Subscription, Price.price_rub)

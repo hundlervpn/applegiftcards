@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
@@ -12,6 +12,14 @@ YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 class PaymentSession(BaseModel):
     payment_url: HttpUrl
     external_payment_id: str
+
+
+class RecurringPayment(BaseModel):
+    external_payment_id: str
+    status: str
+    paid: bool
+    amount_value: Decimal
+    currency: str
 
 
 class AcquirerError(Exception):
@@ -97,4 +105,90 @@ async def create_payment(
             external_payment_id=data["id"],
         )
     except (KeyError, TypeError, ValidationError) as exc:
+        raise AcquirerBadResponseError(f"unexpected YooKassa response: {exc}") from exc
+
+
+async def create_recurring_payment(
+    shop_id: str,
+    secret_key: str,
+    amount_rub: Decimal,
+    payment_method_id: str,
+    idempotence_key: str,
+    description: str,
+    metadata: dict[str, str],
+    currency: str = "RUB",
+    api_url: str = YOOKASSA_API_URL,
+    timeout_seconds: float = 10.0,
+) -> RecurringPayment:
+    """Безакцептное списание по сохранённому payment_method_id.
+
+    В теле нет confirmation: покупатель не подтверждает платёж в браузере.
+    """
+    if not shop_id or not secret_key:
+        raise AcquirerConfigurationError(
+            "YooKassa shop ID and secret key must be configured"
+        )
+    if not payment_method_id.strip():
+        raise AcquirerConfigurationError("payment_method_id is required")
+    if not idempotence_key or len(idempotence_key) > 64:
+        raise AcquirerConfigurationError("Idempotence-Key must be 1..64 characters")
+
+    payload = {
+        "amount": {
+            "value": decimal_to_yookassa_rub(amount_rub),
+            "currency": currency,
+        },
+        "capture": True,
+        "payment_method_id": payment_method_id,
+        "description": description,
+        "metadata": metadata,
+    }
+    try:
+        async with httpx.AsyncClient(
+            auth=httpx.BasicAuth(shop_id, secret_key),
+            timeout=timeout_seconds,
+        ) as client:
+            response = await client.post(
+                f"{api_url.rstrip('/')}/payments",
+                headers={"Idempotence-Key": idempotence_key},
+                json=payload,
+            )
+    except httpx.HTTPError as exc:
+        raise AcquirerUnavailableError(f"YooKassa unreachable: {exc}") from exc
+
+    if not response.is_success:
+        raise AcquirerBadResponseError(
+            f"YooKassa returned {response.status_code}: {response.text[:200]}"
+        )
+
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise AcquirerBadResponseError("YooKassa returned invalid JSON") from exc
+
+    try:
+        if not isinstance(data, dict):
+            raise TypeError("response is not a JSON object")
+        amount = data["amount"]
+        if not isinstance(amount, dict):
+            raise TypeError("amount is not an object")
+        paid = data["paid"]
+        status = data["status"]
+        payment_id = data["id"]
+        if (
+            not isinstance(paid, bool)
+            or not isinstance(status, str)
+            or not isinstance(payment_id, str)
+        ):
+            raise TypeError("payment status fields have unexpected types")
+        if not payment_id:
+            raise TypeError("payment id is empty")
+        return RecurringPayment(
+            external_payment_id=payment_id,
+            status=status,
+            paid=paid,
+            amount_value=Decimal(str(amount["value"])),
+            currency=str(amount["currency"]),
+        )
+    except (KeyError, TypeError, ValidationError, InvalidOperation, ValueError) as exc:
         raise AcquirerBadResponseError(f"unexpected YooKassa response: {exc}") from exc
