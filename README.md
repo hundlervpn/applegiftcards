@@ -191,4 +191,4 @@ $$\text{tasks/scrum-}<\text{ID задачи}>-<\text{краткое-описан
 ## 📄 Лицензия и документация проекта
 * Архитектурное руководство: [docs/architecture.md](docs/architecture.md)
 * Схема базы данных: [docs/schema.sql](docs/schema.sql) и [docs/schema.dbml](docs/schema.dbml)
-* Спецификации решений (SDD): [docs/sdd-scrum-35-save-payment-method.md](docs/sdd-scrum-35-save-payment-method.md), [docs/sdd-scrum-36-recurring-payments.md](docs/sdd-scrum-36-recurring-payments.md)
+* Спецификации решений (SDD): [docs/sdd-scrum-35-save-payment-method.md](docs/sdd-scrum-35-save-payment-method.md), [docs/sdd-scrum-36-recurring-payments.md](docs/sdd-scrum-36-recurring-payments.md), [docs/sdd-scrum-37-billing-scheduler.md](docs/sdd-scrum-37-billing-scheduler.md), [docs/sdd-scrum-38-dunning-management.md](docs/sdd-scrum-38-dunning-management.md)

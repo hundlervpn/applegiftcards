@@ -1,4 +1,5 @@
 import base64
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -50,11 +51,15 @@ def _expected_key(subscription_id: int, billing_at: datetime) -> str:
     )
 
 
+CARD_UPDATE_URL = "https://shop.example/account/card"
+
+
 def _settings() -> Settings:
     return Settings(
         database_url="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/awe",
         yookassa_shop_id="test-shop",
         yookassa_secret_key="test-secret",
+        card_update_url=CARD_UPDATE_URL,
     )
 
 
@@ -108,13 +113,17 @@ def _payment(
     paid: bool = True,
     amount: str = "1500.00",
     currency: str = "RUB",
+    reason: str | None = None,
 ) -> dict:
-    return {
+    payload = {
         "id": PAYMENT_ID,
         "status": status,
         "paid": paid,
         "amount": {"value": amount, "currency": currency},
     }
+    if reason is not None:
+        payload["cancellation_details"] = {"party": "payment_network", "reason": reason}
+    return payload
 
 
 def test_recurring_idempotence_key_is_uuid5_of_subscription_and_utc_billing_date():
@@ -155,6 +164,7 @@ async def test_create_recurring_payment_posts_unattended_charge():
         paid=True,
         amount_value=PRICE,
         currency="RUB",
+        cancellation_reason=None,
     )
     assert capture.url == "https://api.yookassa.ru/v3/payments"
     assert capture.headers == {"Idempotence-Key": _expected_key(7, AS_OF)}
@@ -167,6 +177,36 @@ async def test_create_recurring_payment_posts_unattended_charge():
     }
     assert "confirmation" not in capture.json
     assert "save_payment_method" not in capture.json
+
+    refused = _Capture(
+        _payment(status="canceled", paid=False, reason="insufficient_funds"),
+    )
+    with patch("app.services.payments.httpx.AsyncClient", refused.client):
+        payment = await create_recurring_payment(
+            shop_id="test-shop",
+            secret_key="test-secret",
+            amount_rub=PRICE,
+            payment_method_id=METHOD_ID,
+            idempotence_key="key",
+            description="Подписка №7",
+            metadata={"subscription_id": "7"},
+        )
+    assert payment.cancellation_reason == "insufficient_funds"
+
+    hostile = _payment(status="canceled", paid=False)
+    hostile["cancellation_details"] = {"reason": "<script>alert(1)</script>"}
+    hostile_capture = _Capture(hostile)
+    with patch("app.services.payments.httpx.AsyncClient", hostile_capture.client):
+        payment = await create_recurring_payment(
+            shop_id="test-shop",
+            secret_key="test-secret",
+            amount_rub=PRICE,
+            payment_method_id=METHOD_ID,
+            idempotence_key="key-2",
+            description="Подписка №7",
+            metadata={"subscription_id": "7"},
+        )
+    assert payment.cancellation_reason is None
     request = httpx.Request("POST", capture.url)
     next(capture.auth.auth_flow(request))
     assert request.headers["Authorization"] == "Basic " + base64.b64encode(
@@ -262,25 +302,31 @@ async def _seed(
     return user, subscription
 
 
-def _patches(capture: _Capture, decrypt=None):
+@contextmanager
+def _charge_context(capture: _Capture, decrypt=None, *, now: datetime | None = None):
     decrypt_patch = patch(
         "app.services.recurring_payments.decrypt_code",
         return_value="GIFT-1" if decrypt is None else decrypt,
         side_effect=decrypt if isinstance(decrypt, Exception) else None,
     )
-    return (
+    with (
         patch("app.services.recurring_payments.get_settings", return_value=_settings()),
         patch("app.services.payments.httpx.AsyncClient", capture.client),
         decrypt_patch,
-        patch("app.services.recurring_payments.enqueue_gift_card_delivery"),
-    )
+        patch("app.services.recurring_payments.enqueue_gift_card_delivery") as enqueue,
+        patch("app.services.recurring_payments.enqueue_dunning_notice") as dunning,
+    ):
+        if now is None:
+            yield enqueue, dunning
+            return
+        with patch("app.services.recurring_payments.utcnow", return_value=now):
+            yield enqueue, dunning
 
 
 async def test_charge_subscription_creates_paid_order_sells_card_and_queues_email(db_session):
     user, subscription = await _seed(db_session, cards=2)
     capture = _Capture(_payment())
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch as enqueue:
+    with _charge_context(capture) as (enqueue, dunning):
         result = await charge_subscription(db_session, subscription)
 
     await db_session.refresh(subscription)
@@ -318,9 +364,11 @@ async def test_charge_subscription_creates_paid_order_sells_card_and_queues_emai
     assert sold[0].order_id == order.id
     assert sold[0].sale_price_rub == PRICE
 
+    assert subscription.status is SubscriptionStatus.active
     assert subscription.next_billing_at == AS_OF + timedelta(days=30)
     assert subscription.dunning_attempts == 0
     enqueue.assert_called_once()
+    dunning.assert_not_called()
     delivery = enqueue.call_args.args[0]
     assert delivery.order_id == order.id
     assert delivery.recipient_email == "subscriber@example.com"
@@ -328,8 +376,7 @@ async def test_charge_subscription_creates_paid_order_sells_card_and_queues_emai
     assert delivery.total_amount_rub == PRICE
 
     second = _Capture(_payment())
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(second)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch:
+    with _charge_context(second):
         await charge_subscription(db_session, subscription)
     assert second.headers["Idempotence-Key"] == _expected_key(
         subscription.id,
@@ -337,58 +384,69 @@ async def test_charge_subscription_creates_paid_order_sells_card_and_queues_emai
     )
 
 
-async def test_declined_payment_keeps_stock_and_billing_date(db_session):
+async def test_third_decline_cancels_without_taking_stock(db_session):
     _, subscription = await _seed(db_session)
-    capture = _Capture(_payment(status="canceled", paid=False))
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch as enqueue:
+    capture = _Capture(_payment(status="canceled", paid=False, reason="insufficient_funds"))
+    with _charge_context(capture) as (enqueue, dunning):
         with pytest.raises(RecurringPaymentDeclined):
             await charge_subscription(db_session, subscription)
 
     await db_session.refresh(subscription)
+    assert subscription.status is SubscriptionStatus.cancelled
     assert subscription.next_billing_at == AS_OF
-    assert subscription.dunning_attempts == 2
+    assert subscription.dunning_attempts == 3
     assert list((await db_session.scalars(select(Order))).all()) == []
     card = await db_session.scalar(select(GiftCard))
     assert card.status is GiftCardStatus.available
     assert card.order_id is None
     enqueue.assert_not_called()
+    notice = dunning.call_args.args[0]
+    assert notice.kind == "cancelled"
+    assert notice.reason == "Недостаточно средств на карте."
+    assert notice.card_update_url == CARD_UPDATE_URL
 
 
 async def test_amount_mismatch_does_not_fulfill(db_session):
     _, subscription = await _seed(db_session)
     capture = _Capture(_payment(amount="10.00"))
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch as enqueue:
+    with _charge_context(capture) as (enqueue, dunning):
         with pytest.raises(RecurringPaymentDeclined):
             await charge_subscription(db_session, subscription)
 
     await db_session.refresh(subscription)
+    assert subscription.status is SubscriptionStatus.active
     assert subscription.next_billing_at == AS_OF
     assert subscription.dunning_attempts == 2
     assert list((await db_session.scalars(select(Order))).all()) == []
     enqueue.assert_not_called()
+    dunning.assert_not_called()
 
 
-async def test_acquirer_error_does_not_create_order(db_session):
-    _, subscription = await _seed(db_session)
+async def test_acquirer_outage_schedules_retry_without_order(db_session):
+    _, subscription = await _seed(db_session, dunning_attempts=0)
     capture = _Capture(status_code=500)
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch as enqueue:
+    with _charge_context(capture, now=AS_OF) as (enqueue, dunning):
         with pytest.raises(AcquirerBadResponseError):
             await charge_subscription(db_session, subscription)
 
     await db_session.refresh(subscription)
-    assert subscription.next_billing_at == AS_OF
+    assert subscription.status is SubscriptionStatus.past_due
+    assert subscription.dunning_attempts == 1
+    assert subscription.next_billing_at == AS_OF + timedelta(days=1)
     assert list((await db_session.scalars(select(Order))).all()) == []
+    card = await db_session.scalar(select(GiftCard))
+    assert card.status is GiftCardStatus.available
     enqueue.assert_not_called()
+    notice = dunning.call_args.args[0]
+    assert notice.kind == "retry"
+    assert notice.reason.startswith("Временная ошибка банка")
+    assert notice.retry_days == 1
 
 
 async def test_empty_stock_does_not_call_yookassa(db_session):
     _, subscription = await _seed(db_session, cards=0)
     capture = _Capture(_payment())
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch as enqueue:
+    with _charge_context(capture) as (enqueue, dunning):
         with pytest.raises(RecurringFulfillmentError):
             await charge_subscription(db_session, subscription)
 
@@ -398,16 +456,13 @@ async def test_empty_stock_does_not_call_yookassa(db_session):
     assert subscription.dunning_attempts == 2
     assert list((await db_session.scalars(select(Order))).all()) == []
     enqueue.assert_not_called()
+    dunning.assert_not_called()
 
 
 async def test_undecryptable_card_rolls_back(db_session):
     _, subscription = await _seed(db_session)
     capture = _Capture(_payment())
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(
-        capture,
-        decrypt=GiftCardDecryptionError("bad"),
-    )
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch:
+    with _charge_context(capture, decrypt=GiftCardDecryptionError("bad")) as (_, dunning):
         with pytest.raises(RecurringFulfillmentError):
             await charge_subscription(db_session, subscription)
 
@@ -418,20 +473,36 @@ async def test_undecryptable_card_rolls_back(db_session):
     assert card.status is GiftCardStatus.available
     assert card.order_id is None
     assert list((await db_session.scalars(select(Order))).all()) == []
+    dunning.assert_not_called()
 
 
 async def test_inactive_subscription_is_not_charged(db_session):
     _, subscription = await _seed(db_session, status=SubscriptionStatus.cancelled)
     capture = _Capture(_payment())
-    settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-    with settings_patch, client_patch, decrypt_patch, enqueue_patch:
+    with _charge_context(capture) as (_, dunning):
         with pytest.raises(RecurringChargeNotAllowed):
             await charge_subscription(db_session, subscription)
 
     assert capture.calls == 0
     await db_session.refresh(subscription)
+    assert subscription.status is SubscriptionStatus.cancelled
     assert subscription.next_billing_at == AS_OF
     assert subscription.dunning_attempts == 2
+    dunning.assert_not_called()
+
+
+async def test_client_error_does_not_start_dunning(db_session):
+    _, subscription = await _seed(db_session, dunning_attempts=0)
+    capture = _Capture(status_code=400)
+    with _charge_context(capture, now=AS_OF) as (_, dunning):
+        with pytest.raises(AcquirerBadResponseError):
+            await charge_subscription(db_session, subscription)
+
+    await db_session.refresh(subscription)
+    assert subscription.status is SubscriptionStatus.active
+    assert subscription.dunning_attempts == 0
+    assert subscription.next_billing_at == AS_OF
+    dunning.assert_not_called()
 
 
 async def test_stale_billing_date_does_not_charge_again(db_engine):
@@ -449,10 +520,10 @@ async def test_stale_billing_date_does_not_charge_again(db_engine):
         await other.commit()
 
         capture = _Capture(_payment())
-        settings_patch, client_patch, decrypt_patch, enqueue_patch = _patches(capture)
-        with settings_patch, client_patch, decrypt_patch, enqueue_patch:
+        with _charge_context(capture) as (_, dunning):
             with pytest.raises(RecurringChargeNotAllowed):
                 await charge_subscription(worker, loaded)
+        dunning.assert_not_called()
 
         assert capture.calls == 0
         await worker.refresh(loaded)

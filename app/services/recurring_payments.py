@@ -1,6 +1,6 @@
 """Безакцептное списание периода подписки по сохранённому токену ЮKassa.
 
-См. docs/sdd-scrum-36-recurring-payments.md
+См. docs/sdd-scrum-36-recurring-payments.md и docs/sdd-scrum-38-dunning-management.md
 """
 
 import asyncio
@@ -23,13 +23,47 @@ from app.repositories import users as users_repo
 from app.repositories.subscriptions import SubscriptionRepository
 from app.services.alerts import notify_low_stock_task
 from app.services.crypto import GiftCardCryptoError, decrypt_code
-from app.services.email import send_gift_card_code_email
+from app.services.dunning import (
+    TRANSPORT_FAILURE_REASON,
+    DunningNotice,
+    customer_facing_decline_reason,
+    normalize_card_update_url,
+    plan_dunning,
+)
+from app.services.email import send_dunning_notice, send_gift_card_code_email
 from app.services.order_fulfillment import GiftCardDelivery, mark_order_delivered
-from app.services.payments import AcquirerError, create_recurring_payment
+from app.services.payments import (
+    AcquirerBadResponseError,
+    AcquirerConfigurationError,
+    AcquirerError,
+    AcquirerUnavailableError,
+    RecurringPayment,
+    create_recurring_payment,
+)
 
 logger = logging.getLogger(__name__)
 
 _BILLING_PERIOD = timedelta(days=30)
+_BILLABLE_STATUSES = (SubscriptionStatus.active, SubscriptionStatus.past_due)
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _is_temporary_acquirer_failure(exc: AcquirerError) -> bool:
+    """Сеть и HTTP 5xx — временный сбой. 4xx и кривой JSON деньгами не считаем отказом банка."""
+    if isinstance(exc, AcquirerUnavailableError):
+        return True
+    return (
+        isinstance(exc, AcquirerBadResponseError)
+        and exc.status_code is not None
+        and exc.status_code >= 500
+    )
+
+
+def _is_refused_payment(payment: RecurringPayment) -> bool:
+    return payment.status in {"canceled", "cancelled"} and payment.paid is False
 
 
 class RecurringChargeError(Exception):
@@ -111,9 +145,9 @@ async def charge_subscription(
     locked = await SubscriptionRepository(session).get_for_update(subscription.id)
     if locked is None:
         raise RecurringChargeNotAllowed("subscription was not found")
-    if locked.status != SubscriptionStatus.active:
+    if locked.status not in _BILLABLE_STATUSES:
         await session.rollback()
-        raise RecurringChargeNotAllowed("subscription is not active")
+        raise RecurringChargeNotAllowed("subscription is not billable")
     if locked.next_billing_at != expected_billing_at:
         await session.rollback()
         raise RecurringChargeNotAllowed("subscription billing date changed")
@@ -132,6 +166,7 @@ async def charge_subscription(
     if user is None or not user.email:
         await session.rollback()
         raise RecurringChargeNotAllowed("subscriber was not found")
+    recipient_email = user.email
 
     # Строка карты держится до commit/rollback, поэтому второй воркер её не заберёт.
     # Статус в базе меняется только вместе с оплаченным заказом.
@@ -165,9 +200,47 @@ async def charge_subscription(
                 "nominal_usd": str(locked.nominal_usd),
             },
         )
-    except AcquirerError:
+    except AcquirerConfigurationError:
         await session.rollback()
         raise
+    except AcquirerError as exc:
+        if not _is_temporary_acquirer_failure(exc):
+            await session.rollback()
+            raise
+        logger.warning(
+            "Recurring charge for subscription %s failed before confirmation (%s)",
+            locked.id,
+            type(exc).__name__,
+        )
+        await _record_dunning(
+            session,
+            locked,
+            expected_billing_at=expected_billing_at,
+            recipient_email=recipient_email,
+            card_update_url=settings.card_update_url,
+            reason=TRANSPORT_FAILURE_REASON,
+        )
+        raise
+
+    if _is_refused_payment(payment):
+        logger.warning(
+            "Recurring charge for subscription %s was refused: %s %s reason=%s",
+            locked.id,
+            payment.external_payment_id,
+            payment.status,
+            payment.cancellation_reason,
+        )
+        await _record_dunning(
+            session,
+            locked,
+            expected_billing_at=expected_billing_at,
+            recipient_email=recipient_email,
+            card_update_url=settings.card_update_url,
+            reason=customer_facing_decline_reason(payment.cancellation_reason),
+        )
+        raise RecurringPaymentDeclined(
+            f"YooKassa payment {payment.external_payment_id} is {payment.status}"
+        )
 
     if not _is_successful_charge(
         payment.status,
@@ -211,11 +284,12 @@ async def charge_subscription(
         await session.flush()
         card.status = GiftCardStatus.sold
 
+        locked.status = SubscriptionStatus.active
         locked.next_billing_at = expected_billing_at + _BILLING_PERIOD
         locked.dunning_attempts = 0
         delivery = GiftCardDelivery(
             order_id=order.id,
-            recipient_email=user.email,
+            recipient_email=recipient_email,
             gift_card_codes=(code,),
             items=tuple(order.items),
             total_amount_rub=order.total_amount_rub,
@@ -244,6 +318,77 @@ async def charge_subscription(
         external_payment_id=payment.external_payment_id,
         delivery=delivery,
     )
+
+
+async def _record_dunning(
+    session: AsyncSession,
+    locked: Subscription,
+    *,
+    expected_billing_at: datetime,
+    recipient_email: str,
+    card_update_url: str,
+    reason: str,
+) -> None:
+    """Фиксирует отказ в той же транзакции, что держала строку подписки и карту.
+
+    Письмо ставится в очередь только после commit: ошибка SMTP статус не откатывает.
+    """
+    if locked.id is None:
+        await session.rollback()
+        raise RecurringChargeNotAllowed("subscription is not persisted")
+
+    plan = plan_dunning(
+        locked.dunning_attempts,
+        now=utcnow(),
+        billing_at=expected_billing_at,
+    )
+    locked.status = plan.status
+    locked.dunning_attempts = plan.dunning_attempts
+    locked.next_billing_at = plan.next_billing_at
+    notice = DunningNotice(
+        kind="cancelled" if plan.cancelled else "retry",
+        recipient_email=recipient_email,
+        subscription_id=locked.id,
+        nominal_usd=locked.nominal_usd,
+        reason=reason,
+        card_update_url=normalize_card_update_url(card_update_url),
+        attempts=plan.dunning_attempts,
+        retry_days=plan.retry_days,
+        next_billing_at=None if plan.cancelled else plan.next_billing_at,
+    )
+    await session.commit()
+    logger.info(
+        "Recorded dunning for subscription %s: status=%s attempts=%s",
+        locked.id,
+        plan.status.value,
+        plan.dunning_attempts,
+    )
+    try:
+        enqueue_dunning_notice(notice)
+    except Exception:
+        logger.exception(
+            "Could not enqueue dunning email for subscription %s",
+            locked.id,
+        )
+
+
+def enqueue_dunning_notice(notice: DunningNotice) -> None:
+    """Ставит сервисное письмо. FastAPI не импортируется: списание идёт из воркера."""
+    loop = asyncio.get_running_loop()
+    loop.create_task(
+        _run_dunning_email(notice),
+        name=f"dunning-email-{notice.subscription_id}",
+    )
+
+
+async def _run_dunning_email(notice: DunningNotice) -> None:
+    try:
+        await send_dunning_notice(notice)
+    except Exception:
+        logger.exception(
+            "Dunning email for subscription %s was not sent",
+            notice.subscription_id,
+        )
 
 
 def enqueue_gift_card_delivery(delivery: GiftCardDelivery) -> None:

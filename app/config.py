@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     telegram_admin_chat_id: str = ""
     low_stock_threshold: int = 3
     billing_scheduler_interval_seconds: int = 600
+    # Absolute http(s) link in the dunning email. Blank or unsafe values fall back.
+    card_update_url: str = "http://localhost:8000/account/payment-method"
 
     jwt_secret_key: str = "dev-insecure-jwt-secret-change-me"
     jwt_algorithm: str = "HS256"

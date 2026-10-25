@@ -233,7 +233,10 @@ async def test_add_rejects_negative_dunning_and_blank_payment_method(db_session,
                 )
 
 
-async def test_lock_next_due_for_billing_returns_oldest_active_row(db_session, subscriptions):
+async def test_lock_next_due_for_billing_includes_past_due_and_skips_cancelled(
+    db_session,
+    subscriptions,
+):
     user = await _user(db_session)
     await _price(db_session, 10)
     await _price(db_session, 25)
@@ -248,7 +251,7 @@ async def test_lock_next_due_for_billing_returns_oldest_active_row(db_session, s
             payment_method_id="pm_later",
         ),
     )
-    await subscriptions.add(
+    past_due = await subscriptions.add(
         _subscription(
             user.id,
             status=SubscriptionStatus.past_due,
@@ -275,7 +278,16 @@ async def test_lock_next_due_for_billing_returns_oldest_active_row(db_session, s
     locked = await subscriptions.lock_next_due_for_billing(as_of=AS_OF)
 
     assert locked is not None
-    assert locked.id == earliest.id
+    assert locked.id == past_due.id
+    assert locked.status is SubscriptionStatus.past_due
+
+    # Отменённая строка старше, но в биллинг не попадает.
+    nxt = await subscriptions.lock_next_due_for_billing(
+        as_of=AS_OF,
+        exclude_ids=[past_due.id],
+    )
+    assert nxt is not None
+    assert nxt.id == earliest.id
 
 
 async def test_lock_next_due_for_billing_skips_excluded_ids(db_session, subscriptions):
