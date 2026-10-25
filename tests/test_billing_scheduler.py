@@ -44,7 +44,7 @@ async def _seed_due(setup, *, billing_at: datetime, email: str, method: str = SE
     return subscription
 
 
-async def test_tick_charges_due_active_subscriptions_oldest_first(db_engine):
+async def test_tick_charges_due_active_and_past_due_subscriptions_oldest_first(db_engine):
     maker = _maker(db_engine)
     async with maker() as setup:
         setup.add(Price(nominal_usd=10, price_rub=PRICE))
@@ -97,7 +97,7 @@ async def test_tick_charges_due_active_subscriptions_oldest_first(db_engine):
         )
         setup.add_all([same_time_second, future, past_due, cancelled])
         await setup.commit()
-        expected = [earlier.id, same_time_first.id, same_time_second.id]
+        expected = [past_due.id, earlier.id, same_time_first.id, same_time_second.id]
 
     calls: list[int] = []
 
@@ -462,9 +462,14 @@ async def test_tick_uses_charge_subscription_for_each_due_row(db_engine, monkeyp
     monkeypatch.setattr("app.services.payments.httpx.AsyncClient", sequence.client)
     monkeypatch.setattr("app.services.recurring_payments.decrypt_code", lambda _code: "GIFT-1")
     enqueued: list[object] = []
+    dunning_notices: list[object] = []
     monkeypatch.setattr(
         "app.services.recurring_payments.enqueue_gift_card_delivery",
         enqueued.append,
+    )
+    monkeypatch.setattr(
+        "app.services.recurring_payments.enqueue_dunning_notice",
+        dunning_notices.append,
     )
     caplog.set_level(logging.DEBUG)
 
@@ -484,9 +489,12 @@ async def test_tick_uses_charge_subscription_for_each_due_row(db_engine, monkeyp
         card = await check.scalar(select(GiftCard))
         assert older_row is not None
         assert newer_row is not None
-        assert older_row.status is SubscriptionStatus.active
+        assert older_row.status is SubscriptionStatus.cancelled
         assert older_row.next_billing_at == AS_OF - timedelta(days=1)
-        assert older_row.dunning_attempts == 2
+        assert older_row.dunning_attempts == 3
+        assert len(dunning_notices) == 1
+        assert dunning_notices[0].kind == "cancelled"
+        assert newer_row.status is SubscriptionStatus.active
         assert newer_row.next_billing_at == AS_OF + timedelta(days=30)
         assert newer_row.dunning_attempts == 0
         assert len(orders) == 1

@@ -1,6 +1,7 @@
 """Фоновый обход подписок к автосписанию.
 
-См. docs/sdd-scrum-37-billing-scheduler.md
+См. docs/sdd-scrum-37-billing-scheduler.md.
+Ретрай `past_due` и отмена после трёх отказов — docs/sdd-scrum-38-dunning-management.md.
 """
 
 import asyncio

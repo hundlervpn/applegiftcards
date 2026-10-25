@@ -67,13 +67,18 @@ class SubscriptionRepository:
         as_of: datetime | None = None,
         exclude_ids: Collection[int] | None = None,
     ) -> Subscription | None:
-        """Lock the oldest active due row, skipping rows held by other transactions."""
+        """Lock the oldest active or past_due row, skipping rows held elsewhere.
+
+        Cancelled subscriptions stay out of billing even if the date is already due.
+        """
         moment = datetime.now(timezone.utc) if as_of is None else as_of
         if moment.tzinfo is None or moment.tzinfo.utcoffset(moment) is None:
             raise ValueError("as_of must be timezone-aware")
 
         filters = [
-            Subscription.status == SubscriptionStatus.active,
+            Subscription.status.in_(
+                (SubscriptionStatus.active, SubscriptionStatus.past_due)
+            ),
             Subscription.next_billing_at <= moment,
         ]
         if exclude_ids:

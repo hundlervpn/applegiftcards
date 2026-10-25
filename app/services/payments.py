@@ -9,6 +9,22 @@ from app.money import decimal_to_yookassa_rub
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 
 
+def _cancellation_reason(data: dict) -> str | None:
+    """Код ``cancellation_details.reason``, если он похож на код ЮKassa."""
+    details = data.get("cancellation_details")
+    if not isinstance(details, dict):
+        return None
+    reason = details.get("reason")
+    if not isinstance(reason, str) or not reason or len(reason) > 64:
+        return None
+    if any(
+        not (character.islower() or character.isdigit() or character == "_")
+        for character in reason
+    ):
+        return None
+    return reason
+
+
 class PaymentSession(BaseModel):
     payment_url: HttpUrl
     external_payment_id: str
@@ -20,6 +36,7 @@ class RecurringPayment(BaseModel):
     paid: bool
     amount_value: Decimal
     currency: str
+    cancellation_reason: str | None = None
 
 
 class AcquirerError(Exception):
@@ -31,7 +48,9 @@ class AcquirerUnavailableError(AcquirerError):
 
 
 class AcquirerBadResponseError(AcquirerError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class AcquirerConfigurationError(AcquirerError):
@@ -158,7 +177,8 @@ async def create_recurring_payment(
 
     if not response.is_success:
         raise AcquirerBadResponseError(
-            f"YooKassa returned {response.status_code}: {response.text[:200]}"
+            f"YooKassa returned {response.status_code}: {response.text[:200]}",
+            status_code=response.status_code,
         )
 
     try:
@@ -189,6 +209,7 @@ async def create_recurring_payment(
             paid=paid,
             amount_value=Decimal(str(amount["value"])),
             currency=str(amount["currency"]),
+            cancellation_reason=_cancellation_reason(data),
         )
     except (KeyError, TypeError, ValidationError, InvalidOperation, ValueError) as exc:
         raise AcquirerBadResponseError(f"unexpected YooKassa response: {exc}") from exc
