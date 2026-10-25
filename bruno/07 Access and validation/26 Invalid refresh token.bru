@@ -1,0 +1,79 @@
+meta {
+  name: 26 Invalid refresh token
+  type: http
+  seq: 26
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/refresh
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {"refresh_token":"not-a-jwt"}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("26 Invalid refresh token", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(401);
+      const body = res.getBody();
+      expect(body.detail).to.equal('Invalid refresh token');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  26 Invalid refresh token
+}
+
+example {
+  name: 401 Unauthorized
+
+  request: {
+    url: {{baseUrl}}/api/v1/auth/refresh
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"refresh_token":"not-a-jwt"}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 401
+      text: Unauthorized
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "detail": "Invalid refresh token"
+        }
+      '''
+    }
+  }
+}

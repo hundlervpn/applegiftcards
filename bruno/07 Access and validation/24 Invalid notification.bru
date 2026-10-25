@@ -1,0 +1,79 @@
+meta {
+  name: 24 Invalid notification
+  type: http
+  seq: 24
+}
+
+post {
+  url: {{baseUrl}}/api/v1/payments/webhook
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {"type":"notification","event":"payment.succeeded","object":{}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("24 Invalid notification", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(400);
+      const body = res.getBody();
+      expect(body.detail).to.equal('Invalid payment notification payload');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  24 Invalid notification
+}
+
+example {
+  name: 400 Bad Request
+
+  request: {
+    url: {{baseUrl}}/api/v1/payments/webhook
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"type":"notification","event":"payment.succeeded","object":{}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 400
+      text: Bad Request
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "detail": "Invalid payment notification payload"
+        }
+      '''
+    }
+  }
+}

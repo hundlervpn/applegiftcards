@@ -1,0 +1,74 @@
+meta {
+  name: 02 OpenAPI
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/openapi.json
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("02 OpenAPI", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body.openapi).to.match(/^3\./);
+      expect(body.paths).to.have.property('/api/v1/subscriptions/{subscription_id}/cancel');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Спецификация реальных маршрутов. Сохранённый пример сокращён.
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/openapi.json
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "openapi": "3.1.0",
+          "info": {
+            "title": "AWE",
+            "version": "0.1.0"
+          },
+          "paths": {}
+        }
+      '''
+    }
+  }
+}

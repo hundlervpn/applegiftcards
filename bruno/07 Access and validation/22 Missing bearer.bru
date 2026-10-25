@@ -1,0 +1,68 @@
+meta {
+  name: 22 Missing bearer
+  type: http
+  seq: 22
+}
+
+get {
+  url: {{baseUrl}}/api/v1/me/orders
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("22 Missing bearer", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(401);
+      const body = res.getBody();
+      expect(body.detail).to.equal('Not authenticated');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  22 Missing bearer
+}
+
+example {
+  name: 401 Unauthorized
+
+  request: {
+    url: {{baseUrl}}/api/v1/me/orders
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 401
+      text: Unauthorized
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "detail": "Not authenticated"
+        }
+      '''
+    }
+  }
+}

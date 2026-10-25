@@ -1,0 +1,82 @@
+meta {
+  name: 27 Register second user
+  type: http
+  seq: 27
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {"email":"{{foreignEmail}}","password":"{{testPassword}}"}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("27 Register second user", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(201);
+      const body = res.getBody();
+      expect(body.access_token).to.be.a('string').and.not.empty;
+      set('foreignAuthToken', body.access_token);
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  27 Register second user
+}
+
+example {
+  name: 201 Created
+
+  request: {
+    url: {{baseUrl}}/api/v1/auth/register
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"email":"{{foreignEmail}}","password":"{{testPassword}}"}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 201
+      text: Created
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "access_token": "demo-access-token",
+          "refresh_token": "demo-refresh-token",
+          "token_type": "bearer"
+        }
+      '''
+    }
+  }
+}

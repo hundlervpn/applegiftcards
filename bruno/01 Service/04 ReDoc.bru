@@ -1,0 +1,66 @@
+meta {
+  name: 04 ReDoc
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/redoc
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("04 ReDoc", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body).to.include('redoc');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  04 ReDoc
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{baseUrl}}/redoc
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: text/html
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: text
+      content: '''
+        <html><body>ReDoc</body></html>
+      '''
+    }
+  }
+}

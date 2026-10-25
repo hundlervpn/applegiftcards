@@ -1,0 +1,70 @@
+meta {
+  name: 28 Foreign subscription forbidden
+  type: http
+  seq: 28
+}
+
+post {
+  url: {{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{foreignAuthToken}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("28 Foreign subscription forbidden", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(403);
+      const body = res.getBody();
+      expect(body.detail).to.equal('Forbidden');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  28 Foreign subscription forbidden
+}
+
+example {
+  name: 403 Forbidden
+
+  request: {
+    url: {{baseUrl}}/api/v1/subscriptions/{{testSubscriptionId}}/cancel
+    method: POST
+    headers: {
+      Accept: application/json
+      Authorization: Bearer {{foreignAuthToken}}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 403
+      text: Forbidden
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "detail": "Forbidden"
+        }
+      '''
+    }
+  }
+}

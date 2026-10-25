@@ -1,0 +1,112 @@
+meta {
+  name: 12 Wait for test payment
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{yookassaBaseUrl}}/payments?limit=100&created_at.gte={{runStartedAt}}{{paymentCursor}}
+  body: none
+  auth: basic
+}
+
+headers {
+  Accept: application/json
+}
+
+auth:basic {
+  username: {{yookassaShopId}}
+  password: {{yookassaSecretKey}}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("12 Wait for test payment", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(200);
+      const body = res.getBody();
+      expect(body.items).to.be.an('array');
+      const attempts = Number(get('paymentPolls') || 0) + 1;
+      set('paymentPolls', String(attempts));
+      const payment = body.items.find(item => String((item.metadata || {}).order_id) === String(get('testOrderId')));
+      if (payment) {
+        expect(payment.test, 'Разрешён только тестовый магазин ЮKassa').to.equal(true);
+        expect(payment.status, 'Платёж отменён').not.to.equal('canceled');
+      }
+      if (!payment || payment.status !== 'succeeded') {
+        expect(attempts, 'Тестовая оплата не завершена: откройте paymentUrl, увеличьте paymentMaxPolls или повторите шаг').to.be.below(Number(get('paymentMaxPolls')));
+        set('paymentCursor', !payment && body.next_cursor ? '&cursor=' + encodeURIComponent(body.next_cursor) : '');
+        next('12 Wait for test payment');
+      } else {
+        expect(payment.amount.currency).to.equal('RUB');
+        expect(String(payment.amount.value)).to.equal(String(get('amountRub')));
+        expect(payment.metadata.is_subscription).to.equal('true');
+        expect(payment.payment_method.saved).to.equal(true);
+        set('testPaymentId', payment.id);
+        set('notificationBody', JSON.stringify({type: 'notification', event: 'payment.succeeded', object: payment}));
+      }
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Читает платежи тестового магазина и ждёт успешной оплаты заказа. Не проводит оплату сам. При next_cursor читает следующую страницу; число запросов ограничено paymentMaxPolls. Для раннера задайте задержку 1000 мс.
+}
+
+example {
+  name: 200 OK
+
+  request: {
+    url: {{yookassaBaseUrl}}/payments?limit=100&created_at.gte={{runStartedAt}}{{paymentCursor}}
+    method: GET
+    headers: {
+      Accept: application/json
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "items": [
+            {
+              "id": "2c8f7d00-0000-5000-8000-1a2b3c4d5e6f",
+              "status": "succeeded",
+              "paid": true,
+              "test": true,
+              "amount": {
+                "value": "999.00",
+                "currency": "RUB"
+              },
+              "metadata": {
+                "order_id": "123",
+                "is_subscription": "true"
+              },
+              "payment_method": {
+                "id": "22e12f66-000f-5000-8000-18db351245c7",
+                "type": "bank_card",
+                "saved": true
+              }
+            }
+          ]
+        }
+      '''
+    }
+  }
+}

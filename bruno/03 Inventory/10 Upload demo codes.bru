@@ -1,0 +1,81 @@
+meta {
+  name: 10 Upload demo codes
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/gift-cards/batch
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  X-Admin-Token: {{adminToken}}
+}
+
+body:json {
+  {"cards":[{"nominal_usd":{{testNominalUsd}},"codes":["DEMO-{{runId}}-A","DEMO-{{runId}}-B"]}]}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("10 Upload demo codes", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(201);
+      const body = res.getBody();
+      expect(body.added).to.equal(2);
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Только тестовый склад: добавляет два демонстрационных, непригодных для активации кода.
+}
+
+example {
+  name: 201 Created
+
+  request: {
+    url: {{baseUrl}}/api/v1/admin/gift-cards/batch
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+      X-Admin-Token: {{adminToken}}
+    }
+
+    body:json: {
+      {"cards":[{"nominal_usd":{{testNominalUsd}},"codes":["DEMO-{{runId}}-A","DEMO-{{runId}}-B"]}]}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 201
+      text: Created
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "added": 2
+        }
+      '''
+    }
+  }
+}

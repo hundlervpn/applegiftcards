@@ -1,0 +1,85 @@
+meta {
+  name: 06 Register
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {"email":"{{runEmail}}","password":"{{testPassword}}"}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("06 Register", function () {
+    try {
+      const status = res.getStatus();
+      expect(status).to.equal(201);
+      const body = res.getBody();
+      expect(body.token_type).to.equal('bearer');
+      expect(body.access_token).to.be.a('string').and.not.empty;
+      expect(body.refresh_token).to.be.a('string').and.not.empty;
+      set('authToken', body.access_token);
+      set('refreshToken', body.refresh_token);
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  06 Register
+}
+
+example {
+  name: 201 Created
+
+  request: {
+    url: {{baseUrl}}/api/v1/auth/register
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"email":"{{runEmail}}","password":"{{testPassword}}"}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 201
+      text: Created
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "access_token": "demo-access-token",
+          "refresh_token": "demo-refresh-token",
+          "token_type": "bearer"
+        }
+      '''
+    }
+  }
+}
