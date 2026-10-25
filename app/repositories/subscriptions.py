@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -59,6 +60,32 @@ class SubscriptionRepository:
             .order_by(Subscription.next_billing_at, Subscription.id)
         )
         return list(await self._session.scalars(statement))
+
+    async def lock_next_due_for_billing(
+        self,
+        *,
+        as_of: datetime | None = None,
+        exclude_ids: Collection[int] | None = None,
+    ) -> Subscription | None:
+        """Lock the oldest active due row, skipping rows held by other transactions."""
+        moment = datetime.now(timezone.utc) if as_of is None else as_of
+        if moment.tzinfo is None or moment.tzinfo.utcoffset(moment) is None:
+            raise ValueError("as_of must be timezone-aware")
+
+        filters = [
+            Subscription.status == SubscriptionStatus.active,
+            Subscription.next_billing_at <= moment,
+        ]
+        if exclude_ids:
+            filters.append(Subscription.id.not_in(tuple(exclude_ids)))
+        statement = (
+            select(Subscription)
+            .where(*filters)
+            .order_by(Subscription.next_billing_at, Subscription.id)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        return await self._session.scalar(statement)
 
     async def update_status(
         self,

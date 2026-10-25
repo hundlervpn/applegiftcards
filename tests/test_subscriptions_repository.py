@@ -1,8 +1,10 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.enums import SubscriptionStatus
 from app.models.price import Price
@@ -229,6 +231,153 @@ async def test_add_rejects_negative_dunning_and_blank_payment_method(db_session,
                 await subscriptions.add(
                     _subscription(user.id, payment_method_id=payment_method_id),
                 )
+
+
+async def test_lock_next_due_for_billing_returns_oldest_active_row(db_session, subscriptions):
+    user = await _user(db_session)
+    await _price(db_session, 10)
+    await _price(db_session, 25)
+    earliest = await subscriptions.add(
+        _subscription(user.id, next_billing_at=AS_OF - timedelta(days=2)),
+    )
+    await subscriptions.add(
+        _subscription(
+            user.id,
+            nominal_usd=25,
+            next_billing_at=AS_OF,
+            payment_method_id="pm_later",
+        ),
+    )
+    await subscriptions.add(
+        _subscription(
+            user.id,
+            status=SubscriptionStatus.past_due,
+            next_billing_at=AS_OF - timedelta(days=3),
+            payment_method_id="pm_past_due",
+        ),
+    )
+    await subscriptions.add(
+        _subscription(
+            user.id,
+            status=SubscriptionStatus.cancelled,
+            next_billing_at=AS_OF - timedelta(days=4),
+            payment_method_id="pm_cancelled",
+        ),
+    )
+    await subscriptions.add(
+        _subscription(
+            user.id,
+            next_billing_at=AS_OF + timedelta(seconds=1),
+            payment_method_id="pm_future",
+        ),
+    )
+
+    locked = await subscriptions.lock_next_due_for_billing(as_of=AS_OF)
+
+    assert locked is not None
+    assert locked.id == earliest.id
+
+
+async def test_lock_next_due_for_billing_skips_excluded_ids(db_session, subscriptions):
+    user = await _user(db_session)
+    await _price(db_session)
+    first = await subscriptions.add(
+        _subscription(user.id, next_billing_at=AS_OF - timedelta(days=1)),
+    )
+    second = await subscriptions.add(
+        _subscription(
+            user.id,
+            next_billing_at=AS_OF,
+            payment_method_id="pm_second",
+        ),
+    )
+
+    locked = await subscriptions.lock_next_due_for_billing(
+        as_of=AS_OF,
+        exclude_ids=[first.id],
+    )
+
+    assert locked is not None
+    assert locked.id == second.id
+
+
+async def test_lock_next_due_for_billing_rejects_naive_datetime(subscriptions):
+    with pytest.raises(ValueError, match="timezone-aware"):
+        await subscriptions.lock_next_due_for_billing(
+            as_of=datetime(2026, 10, 23, 12, 0),
+        )
+
+
+async def test_lock_next_due_for_billing_skips_row_held_by_another_transaction(db_engine):
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as setup:
+        user = await _user(setup, "locked@example.com")
+        await _price(setup)
+        earlier = await SubscriptionRepository(setup).add(
+            _subscription(user.id, next_billing_at=AS_OF - timedelta(days=1)),
+        )
+        later = await SubscriptionRepository(setup).add(
+            _subscription(
+                user.id,
+                next_billing_at=AS_OF,
+                payment_method_id="pm_later",
+            ),
+        )
+        await setup.commit()
+        earlier_id = earlier.id
+        later_id = later.id
+
+    holder = maker()
+    other = maker()
+    try:
+        held = await SubscriptionRepository(holder).lock_next_due_for_billing(as_of=AS_OF)
+        assert held is not None
+        assert held.id == earlier_id
+
+        skipped = await asyncio.wait_for(
+            SubscriptionRepository(other).lock_next_due_for_billing(as_of=AS_OF),
+            timeout=5,
+        )
+        assert skipped is not None
+        assert skipped.id == later_id
+
+        visible = await asyncio.wait_for(
+            SubscriptionRepository(other).list_active_due_for_billing(as_of=AS_OF),
+            timeout=5,
+        )
+        assert [row.id for row in visible] == [earlier_id, later_id]
+    finally:
+        await holder.rollback()
+        await holder.close()
+        await other.rollback()
+        await other.close()
+
+
+async def test_lock_next_due_for_billing_returns_none_when_the_only_row_is_locked(db_engine):
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as setup:
+        user = await _user(setup, "only-locked@example.com")
+        await _price(setup)
+        stored = await SubscriptionRepository(setup).add(_subscription(user.id))
+        await setup.commit()
+        stored_id = stored.id
+
+    holder = maker()
+    other = maker()
+    try:
+        held = await SubscriptionRepository(holder).lock_next_due_for_billing(as_of=AS_OF)
+        assert held is not None
+        assert held.id == stored_id
+        skipped = await asyncio.wait_for(
+            SubscriptionRepository(other).lock_next_due_for_billing(as_of=AS_OF),
+            timeout=5,
+        )
+        assert skipped is None
+    finally:
+        await holder.rollback()
+        await holder.close()
+        await other.rollback()
+        await other.close()
 
 
 async def test_add_rejects_payment_method_longer_than_64(db_session, subscriptions):

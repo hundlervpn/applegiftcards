@@ -75,3 +75,13 @@ async def client(db_engine) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as http:
         yield http
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _do_not_run_billing_scheduler(monkeypatch):
+    """TestClient входит в lifespan. Настоящий планировщик списал бы подписки из dev-базы."""
+
+    async def idle() -> None:
+        return None
+
+    monkeypatch.setattr("app.main.run_billing_scheduler", idle)
