@@ -6,6 +6,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Alembic](https://img.shields.io/badge/Alembic-Migrations-orange)](https://alembic.sqlalchemy.org/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Deploy](https://github.com/hundlervpn/applegiftcards/actions/workflows/deploy.yml/badge.svg)](https://github.com/hundlervpn/applegiftcards/actions/workflows/deploy.yml)
 
 Серверный бэкенд платформы для безопасной покупки подарочных карт Apple Gift Cards и регулярной ежемесячной автодоставки по подписке с безакцептным списанием через платёжный шлюз ЮKassa.
 
@@ -289,5 +290,6 @@ $$\text{tasks/scrum-}<\text{ID задачи}>-<\text{краткое-описан
 
 ## 📄 Лицензия и документация проекта
 * Архитектурное руководство: [docs/architecture.md](docs/architecture.md)
+* Регламент деплоя и эксплуатации стенда (Runbook): [docs/deploy.md](docs/deploy.md)
 * Схема базы данных: [docs/schema.sql](docs/schema.sql) и [docs/schema.dbml](docs/schema.dbml)
 * Спецификации решений (SDD): [docs/sdd-scrum-35-save-payment-method.md](docs/sdd-scrum-35-save-payment-method.md), [docs/sdd-scrum-36-recurring-payments.md](docs/sdd-scrum-36-recurring-payments.md), [docs/sdd-scrum-37-billing-scheduler.md](docs/sdd-scrum-37-billing-scheduler.md), [docs/sdd-scrum-38-dunning-management.md](docs/sdd-scrum-38-dunning-management.md)
