@@ -1,0 +1,96 @@
+# CD: deploy main to the production VM over SSH (SCRUM-59 / SCRUM-61).
+#
+# Required repository secrets:
+#   SSH_HOST         VM public IP
+#   SSH_USER         login on the VM (ubuntu)
+#   SSH_KEY          private key of the restricted deploy key (gh_actions_deploy)
+#   SSH_KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <SSH_HOST>`
+#
+# The VM keeps the repo in /opt/awe and the production .env next to it.
+# TODO: when the CI workflow (SCRUM-58) lands, gate this job on it
+#       (workflow_run on CI success) instead of a plain push trigger.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; never cancel a deploy halfway through.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Manual runs from feature branches must not reach production.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host prod
+            HostName ${SSH_HOST}
+            User ${SSH_USER}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+          EOF
+
+      - name: Deploy ${{ github.sha }}
+        run: |
+          ssh prod bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          set -euo pipefail
+          SHA="$1"
+          export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+          cd /opt/awe
+
+          echo "::group::Checkout $SHA"
+          git fetch --quiet origin main
+          git reset --hard "$SHA"
+          echo "::endgroup::"
+
+          echo "::group::Build and start"
+          docker compose up -d --build --remove-orphans
+          echo "::endgroup::"
+
+          echo "Waiting for /health ..."
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health; then
+              echo
+              docker image prune -f >/dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::API did not become healthy"
+          docker compose ps
+          docker compose logs --tail 100 api
+          exit 1
+          REMOTE
+
+      - name: Public smoke test via Nginx
+        run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "http://${SSH_HOST}/health"
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

@@ -1,0 +1,27 @@
+# Production overrides for docker-compose.yml (SCRUM-61).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Secrets come only from the server-side .env (never committed).
+# Missing required values make `docker compose` fail before anything starts.
+services:
+  postgres:
+    # No published port: the DB is reachable only inside the compose network.
+    # Docker-published ports bypass UFW, so do not add one here.
+    ports: !reset []
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+
+  api:
+    # Loopback only: public traffic goes through Nginx on the host.
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    # Replace the dev environment block entirely so hardcoded dev secrets
+    # from docker-compose.yml never reach production.
+    environment: !override
+      DEBUG: ${DEBUG:-False}
+      DATABASE_URL: ${DATABASE_URL:?set in .env}
+      FERNET_KEY: ${FERNET_KEY:?set in .env}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set in .env}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
