@@ -1,15 +1,22 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
+from fastapi import HTTPException, Request
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.config import get_settings
+from app.db.session import get_db
+from app.main import create_app
 from app.models.user import User
+from app.rate_limit import client_ip
 from app.services import tokens
 
 REGISTER_URL = "/api/v1/auth/register"
 LOGIN_URL = "/api/v1/auth/login"
 REFRESH_URL = "/api/v1/auth/refresh"
+ORDER_URL = "/api/v1/orders/one-time"
 
 PASSWORD = "sup3r-secret"
 GENERIC_401_DETAIL = "Invalid email or password"
@@ -154,3 +161,150 @@ async def test_refresh_rejects_expired_token_with_token_has_expired(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Token has expired"
+
+
+def assert_too_many_requests(response, limit: str) -> None:
+    assert response.status_code == 429
+    assert response.json() == {"detail": "Too Many Requests"}
+    assert response.headers["x-ratelimit-limit"] == limit
+    assert response.headers["x-ratelimit-remaining"] == "0"
+    retry_after = int(response.headers["retry-after"])
+    assert 1 <= retry_after <= 60
+    assert int(response.headers["x-ratelimit-reset"]) >= int(time.time())
+
+
+def _request(peer: str, forwarded: str | None = None) -> Request:
+    headers = []
+    if forwarded is not None:
+        headers.append((b"x-forwarded-for", forwarded.encode()))
+    return Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/api/v1/auth/login",
+            "raw_path": b"/api/v1/auth/login",
+            "query_string": b"",
+            "headers": headers,
+            "client": (peer, 12345),
+            "server": ("test", 80),
+        }
+    )
+
+
+def test_forwarded_for_is_ignored_when_peer_is_not_a_trusted_proxy():
+    assert client_ip(_request("203.0.113.50", "198.51.100.77")) == "203.0.113.50"
+
+
+def test_forwarded_for_uses_the_client_nginx_accepted():
+    assert client_ip(_request("127.0.0.1", "198.51.100.1, 203.0.113.10")) == "203.0.113.10"
+    assert client_ip(_request("172.18.0.1", "203.0.113.10")) == "203.0.113.10"
+    assert client_ip(_request("172.18.0.1")) == "172.18.0.1"
+
+
+async def test_register_rate_limit_returns_429_with_headers(client):
+    for index in range(3):
+        response = await client.post(
+            REGISTER_URL,
+            json={"email": f"rate-limit-{index}@example.com", "password": PASSWORD},
+        )
+        assert response.status_code == 201, response.text
+
+    blocked = await client.post(
+        REGISTER_URL,
+        json={"email": "rate-limit-blocked@example.com", "password": PASSWORD},
+    )
+    assert_too_many_requests(blocked, "3")
+
+
+async def test_login_rate_limit_returns_429(client):
+    payload = {"email": "nobody-rate@example.com", "password": "other-passw0rd"}
+    for _ in range(5):
+        response = await client.post(LOGIN_URL, json=payload)
+        assert response.status_code == 401
+
+    blocked = await client.post(LOGIN_URL, json=payload)
+    assert_too_many_requests(blocked, "5")
+
+
+async def test_order_create_rate_limit_returns_429(client):
+    for _ in range(10):
+        response = await client.post(ORDER_URL, json={})
+        assert response.status_code == 422
+
+    blocked = await client.post(ORDER_URL, json={})
+    assert_too_many_requests(blocked, "10")
+
+
+async def test_rate_limit_uses_client_ip_from_x_forwarded_for(client):
+    real_client = "203.0.113.10"
+    other_client = "203.0.113.20"
+    # Клиент дописал чужой адрес, Nginx добавил настоящий справа.
+    chain = f"198.51.100.8, {real_client}"
+
+    for index in range(3):
+        response = await client.post(
+            REGISTER_URL,
+            json={"email": f"fwd-{index}@example.com", "password": PASSWORD},
+            headers={"X-Forwarded-For": chain},
+        )
+        assert response.status_code == 201, response.text
+
+    blocked = await client.post(
+        REGISTER_URL,
+        json={"email": "fwd-blocked@example.com", "password": PASSWORD},
+        headers={"X-Forwarded-For": real_client},
+    )
+    assert_too_many_requests(blocked, "3")
+
+    spoofed_only = await client.post(
+        REGISTER_URL,
+        json={"email": "fwd-spoof@example.com", "password": PASSWORD},
+        headers={"X-Forwarded-For": "198.51.100.8"},
+    )
+    assert spoofed_only.status_code == 201
+
+    other = await client.post(
+        REGISTER_URL,
+        json={"email": "fwd-other@example.com", "password": PASSWORD},
+        headers={"X-Forwarded-For": other_client},
+    )
+    assert other.status_code == 201
+    login = await client.post(
+        LOGIN_URL,
+        json={"email": "fwd-other@example.com", "password": PASSWORD},
+        headers={"X-Forwarded-For": other_client},
+    )
+    assert login.status_code == 200
+
+
+async def test_exceeded_register_does_not_open_db_session():
+    opened = 0
+
+    async def override_get_db():
+        nonlocal opened
+        opened += 1
+        # yield оставляет зависимость генератором, как настоящий get_db.
+        # До yield запрос уже дошёл до сессии — лимит этого не делает.
+        if opened:
+            raise HTTPException(status_code=503, detail="db opened")
+        yield None
+
+    app = create_app()
+    app.dependency_overrides[get_db] = override_get_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        for index in range(3):
+            response = await http.post(
+                REGISTER_URL,
+                json={"email": f"nodb-{index}@example.com", "password": PASSWORD},
+            )
+            assert response.status_code == 503
+        blocked = await http.post(
+            REGISTER_URL,
+            json={"email": "nodb-blocked@example.com", "password": PASSWORD},
+        )
+    assert_too_many_requests(blocked, "3")
+    assert opened == 3

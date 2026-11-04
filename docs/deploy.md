@@ -53,6 +53,20 @@ Database backup:
 docker compose exec -T postgres pg_dump -U postgres awe | gzip > ~/awe-$(date +%F).sql.gz
 ```
 
+## Rate limiting
+
+`POST /api/v1/auth/register` — 3/min, `POST /api/v1/auth/login` — 5/min, `POST /api/v1/orders/one-time` — 10/min. The quota is per client IP and lives in the API process (one uvicorn worker, one counter). A rejected call returns `429` with `Retry-After` and `X-RateLimit-*` and does not open a database session.
+
+Nginx must pass the client address. Without it every buyer shares the proxy IP and the limits trip for everyone:
+
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+The app reads `X-Forwarded-For` only when the direct peer is in `TRUSTED_PROXIES` (loopback and private ranges by default: Nginx on the host, container port on the docker bridge). The key is the rightmost valid address — the one Nginx appended — so a client cannot open a new bucket by prepending a fake IP.
+
 ## Secrets
 
 `.env` keys required by `docker-compose.prod.yml`: `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET_KEY`, `FERNET_KEY`.

@@ -1,6 +1,7 @@
 from functools import lru_cache
+from ipaddress import ip_network
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +44,41 @@ class Settings(BaseSettings):
 
     # Fernet key (url-safe base64 of 32 bytes). Empty → encrypt/decrypt fail at use.
     fernet_key: SecretStr = SecretStr("")
+
+    # Per-IP quotas (slowapi / limits). One counter per API process.
+    rate_limit_enabled: bool = True
+    auth_register_rate_limit: str = "3/minute"
+    auth_login_rate_limit: str = "5/minute"
+    order_create_rate_limit: str = "10/minute"
+    # "*" trusts every direct peer. Otherwise a comma-separated list of IPs or CIDRs.
+    # Loopback and RFC1918 cover Nginx on the host in front of the container port.
+    trusted_proxies: str = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+    @field_validator(
+        "auth_register_rate_limit",
+        "auth_login_rate_limit",
+        "order_create_rate_limit",
+    )
+    @classmethod
+    def _valid_rate_limit(cls, value: str) -> str:
+        from limits import parse
+
+        parse(value)
+        return value
+
+    @field_validator("trusted_proxies")
+    @classmethod
+    def _valid_trusted_proxies(cls, value: str) -> str:
+        if value.strip() == "*":
+            return "*"
+        for part in value.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "/" not in part:
+                part = f"{part}/128" if ":" in part else f"{part}/32"
+            ip_network(part, strict=False)
+        return value
 
 
 @lru_cache

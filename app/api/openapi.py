@@ -186,6 +186,30 @@ SUBSCRIPTION_NOT_FOUND_RESPONSE = error_response(
     missing="Subscription not found",
 )
 
+TOO_MANY_REQUESTS_RESPONSE = {
+    "model": ErrorResponse,
+    "description": (
+        "Слишком много запросов с одного IP. Retry-After — секунды до новой попытки. "
+        "X-RateLimit-Limit — размер окна, X-RateLimit-Remaining — сколько запросов осталось, "
+        "X-RateLimit-Reset — unix-время окончания окна."
+    ),
+    "headers": {
+        "Retry-After": {
+            "schema": {"type": "integer"},
+            "description": "Секунды до сброса окна",
+        },
+        "X-RateLimit-Limit": {"schema": {"type": "integer"}},
+        "X-RateLimit-Remaining": {"schema": {"type": "integer"}},
+        "X-RateLimit-Reset": {
+            "schema": {"type": "integer"},
+            "description": "Unix-время сброса окна",
+        },
+    },
+    "content": {
+        "application/json": {"example": {"detail": "Too Many Requests"}},
+    },
+}
+
 INVALID_REFRESH_RESPONSE = error_response(
     "Refresh-токен невалиден, имеет неверный тип, истёк либо пользователь удалён или неактивен.",
     invalid="Invalid refresh token",

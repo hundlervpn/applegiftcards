@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.openapi import TOO_MANY_REQUESTS_RESPONSE
 from app.config import Settings, get_settings
 from app.db.session import get_db
+from app.rate_limit import TOO_MANY_REQUESTS_DETAIL, limiter, order_create_limit
 from app.schemas.order import OneTimeOrderCreate, OneTimeOrderResponse
 from app.services.inventory import GiftCardUnavailableError
 from app.services.order_checkout import create_one_time_order_checkout
@@ -16,8 +18,15 @@ from app.services.payments import (
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-@router.post("/one-time", status_code=201, response_model=OneTimeOrderResponse)
+@router.post(
+    "/one-time",
+    status_code=201,
+    response_model=OneTimeOrderResponse,
+    responses={429: TOO_MANY_REQUESTS_RESPONSE},
+)
+@limiter.limit(order_create_limit, error_message=TOO_MANY_REQUESTS_DETAIL)
 async def create_one_time_order(
+    request: Request,
     body: OneTimeOrderCreate,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
