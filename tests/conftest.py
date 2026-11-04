@@ -84,6 +84,16 @@ async def client(db_engine) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Счётчики в памяти процесса общие на все тесты. Каждому тесту — чистое окно."""
+    from app.rate_limit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+@pytest.fixture(autouse=True)
 def _do_not_run_billing_scheduler(monkeypatch):
     """TestClient входит в lifespan. Настоящий планировщик списал бы подписки из dev-базы."""
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.openapi import (
@@ -6,8 +6,10 @@ from app.api.openapi import (
     INVALID_CREDENTIALS_RESPONSE,
     INVALID_REFRESH_RESPONSE,
     TOKEN_PAIR_RESPONSE,
+    TOO_MANY_REQUESTS_RESPONSE,
 )
 from app.db.session import get_db
+from app.rate_limit import TOO_MANY_REQUESTS_DETAIL, limiter, login_limit, register_limit
 from app.schemas.auth import RefreshRequest, TokenResponse, UserLogin, UserRegister
 from app.services import auth as auth_service
 from app.services.auth import EmailAlreadyRegisteredError, InvalidCredentialsError, InvalidRefreshTokenError
@@ -27,9 +29,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
         "Пароль содержит минимум 8 символов, хотя бы одну букву и цифру, не более 72 байт UTF-8. "
         "Сроки действия токенов задаются настройками сервиса."
     ),
-    responses={201: TOKEN_PAIR_RESPONSE, 409: EMAIL_CONFLICT_RESPONSE},
+    responses={
+        201: TOKEN_PAIR_RESPONSE,
+        409: EMAIL_CONFLICT_RESPONSE,
+        429: TOO_MANY_REQUESTS_RESPONSE,
+    },
 )
+@limiter.limit(register_limit, error_message=TOO_MANY_REQUESTS_DETAIL)
 async def register(
+    request: Request,
     body: UserRegister,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
@@ -56,9 +64,15 @@ async def register(
         "Неверный пароль, неизвестный email и неактивный пользователь дают одинаковый ответ 401. "
         "Access-токен используется для запросов к личному кабинету через BearerAuth."
     ),
-    responses={200: TOKEN_PAIR_RESPONSE, 401: INVALID_CREDENTIALS_RESPONSE},
+    responses={
+        200: TOKEN_PAIR_RESPONSE,
+        401: INVALID_CREDENTIALS_RESPONSE,
+        429: TOO_MANY_REQUESTS_RESPONSE,
+    },
 )
+@limiter.limit(login_limit, error_message=TOO_MANY_REQUESTS_DETAIL)
 async def login(
+    request: Request,
     body: UserLogin,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:

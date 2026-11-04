@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from slowapi.errors import RateLimitExceeded
 
 from app.api.health import router as health_router
 from app.api.openapi import API_TAGS
@@ -16,6 +17,7 @@ from app.api.v1.orders import router as orders_router
 from app.api.v1.subscriptions import router as subscriptions_router
 from app.config import get_settings
 from app.db.session import dispose_engine
+from app.rate_limit import RateLimitMiddleware, limiter, rate_limit_exceeded_handler
 from app.services.scheduler import run_billing_scheduler
 
 logger = logging.getLogger(__name__)
@@ -39,12 +41,16 @@ async def lifespan(_: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    limiter.enabled = settings.rate_limit_enabled
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
         openapi_tags=API_TAGS,
     )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    app.add_middleware(RateLimitMiddleware)
     app.include_router(health_router)
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(catalog_router, prefix="/api/v1")
