@@ -20,3 +20,10 @@ class SubscriptionStatus(str, enum.Enum):
     active = "active"
     past_due = "past_due"
     cancelled = "cancelled"
+
+
+class SupportTicketStatus(str, enum.Enum):
+    open = "open"
+    in_progress = "in_progress"
+    resolved = "resolved"
+    closed = "closed"

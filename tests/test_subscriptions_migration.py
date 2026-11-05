@@ -292,18 +292,18 @@ async def _assert_downgraded(url: str) -> None:
     assert users == "users"
 
 
-async def test_alembic_upgrade_head_and_downgrade_on_postgres():
+async def test_alembic_subscriptions_upgrade_and_downgrade_on_postgres():
     url = _database_url(MIGRATION_DB)
     await _recreate_database()
     try:
-        _alembic("upgrade", "head", database_url=url)
+        _alembic("upgrade", HEAD_REVISION, database_url=url)
         await _assert_upgraded_schema(url)
         await _assert_integrity(url)
 
         _alembic("downgrade", "-1", database_url=url)
         await _assert_downgraded(url)
 
-        _alembic("upgrade", "head", database_url=url)
+        _alembic("upgrade", HEAD_REVISION, database_url=url)
         await _assert_upgraded_schema(url)
     finally:
         await _drop_database()

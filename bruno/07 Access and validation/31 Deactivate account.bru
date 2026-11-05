@@ -1,7 +1,7 @@
 meta {
-  name: 29 Deactivate account
+  name: 31 Deactivate account
   type: http
-  seq: 29
+  seq: 31
 }
 
 delete {
@@ -18,7 +18,7 @@ headers {
 tests {
   const set = (key, value) => bru.setVar(key, value);
   const next = name => bru.runner.setNextRequest(name);
-  test("29 Deactivate account", function () {
+  test("31 Deactivate account", function () {
     try {
       expect(res.getStatus()).to.equal(204);
       expect(res.getBody()).to.equal('');

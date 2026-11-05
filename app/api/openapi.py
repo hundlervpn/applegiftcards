@@ -4,6 +4,13 @@ from app.schemas.error import ErrorResponse
 
 API_TAGS = [
     {
+        "name": "support",
+        "description": (
+            "Обращения и рекламации авторизованного пользователя. "
+            "Пользователь видит только собственные тикеты и может привязать только свой заказ."
+        ),
+    },
+    {
         "name": "auth",
         "description": (
             "Регистрация, вход и обновление JWT. Получите пару токенов через register или login, "
