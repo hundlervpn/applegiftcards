@@ -7,6 +7,7 @@
 [![Alembic](https://img.shields.io/badge/Alembic-Migrations-orange)](https://alembic.sqlalchemy.org/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Deploy](https://github.com/hundlervpn/applegiftcards/actions/workflows/deploy.yml/badge.svg)](https://github.com/hundlervpn/applegiftcards/actions/workflows/deploy.yml)
+[![CI](https://github.com/hundlervpn/applegiftcards/actions/workflows/ci.yml/badge.svg)](https://github.com/hundlervpn/applegiftcards/actions/workflows/ci.yml)
 
 Серверный бэкенд платформы для безопасной покупки подарочных карт Apple Gift Cards и регулярной ежемесячной автодоставки по подписке с безакцептным списанием через платёжный шлюз ЮKassa.
 
@@ -71,6 +72,30 @@ pytest
 # Запуск тестов конкретного домена (например, рекуррентные списания)
 pytest tests/test_recurring_payments.py -v
 ```
+
+### Непрерывная интеграция (SCRUM-59)
+
+Workflow `.github/workflows/ci.yml` запускается на каждый Pull Request и push в любую ветку.
+Проверки выполняются на Python 3.12: `ruff check .`, `ruff format --check .`, миграции
+`alembic upgrade head` и `pytest tests/` с отдельным сервисным PostgreSQL 16. Newman и Bruno
+устанавливаются в CI, чтобы тесты API-коллекций тоже выполнялись. Отдельная проверка собирает
+`Dockerfile` без публикации образа. Рабочие ключи платёжного сервиса, SMTP и сервера не нужны.
+
+Для локальной проверки линтера и форматирования:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+```
+
+Исправить оформление можно командой `ruff format .`. Версия Ruff зафиксирована в
+`requirements-dev.txt`, правила и длина строки — в `ruff.toml`.
+
+Для ветки `main` обязательна проверка `CI required`: она завершается успешно только после
+успеха Ruff, тестов и Docker build. Ошибка, отмена или пропуск любой из этих проверок не дают
+зелёного результата. Обязательность задаётся в настройках защиты ветки GitHub отдельно от
+workflow; само добавление YAML не запрещает слияние упавшего PR.
 
 ---
 
