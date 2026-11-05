@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from app.services.email import build_gift_card_email
+from app.services.email import _templates, build_gift_card_email
 from app.services.order_fulfillment import GiftCardDelivery
 
 CODE_ONE = "ABCD-EFGH-IJKL"
@@ -64,6 +64,41 @@ class BuildGiftCardEmailTests(unittest.TestCase):
         html = message.get_body(("html",)).get_content()
         self.assertNotIn("<script>alert", html)
         self.assertIn("&lt;script&gt;", html)
+
+
+class TemplateEnvironmentCacheTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _templates.cache_clear()
+        self.addCleanup(_templates.cache_clear)
+
+    def test_environment_and_compiled_template_are_reused(self) -> None:
+        first = _templates()
+        second = _templates()
+        self.assertIs(first, second)
+        self.assertIs(
+            first.get_template("email/gift_card_delivered.html"),
+            second.get_template("email/gift_card_delivered.html"),
+        )
+        self.assertEqual(_templates.cache_info().maxsize, 1)
+
+    def test_cached_environment_keeps_message_contents_separate(self) -> None:
+        first = build_gift_card_email(
+            make_delivery(gift_card_codes=(CODE_ONE,), recipient_email="first@example.com"),
+            from_email="no-reply@okno.example",
+        )
+        second = build_gift_card_email(
+            make_delivery(gift_card_codes=(CODE_TWO,), recipient_email="second@example.com"),
+            from_email="no-reply@okno.example",
+        )
+        for subtype in ("plain", "html"):
+            first_body = first.get_body((subtype,)).get_content()
+            second_body = second.get_body((subtype,)).get_content()
+            self.assertIn(CODE_ONE, first_body)
+            self.assertNotIn(CODE_TWO, first_body)
+            self.assertIn(CODE_TWO, second_body)
+            self.assertNotIn(CODE_ONE, second_body)
+        self.assertIn("first@example.com", first.get_body(("html",)).get_content())
+        self.assertNotIn("first@example.com", second.get_body(("html",)).get_content())
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.message import EmailMessage
+from functools import lru_cache
 from pathlib import Path
 
 import aiosmtplib
@@ -24,6 +25,7 @@ class EmailConfigurationError(Exception):
     pass
 
 
+@lru_cache(maxsize=1)
 def _templates() -> Environment:
     return Environment(
         loader=FileSystemLoader(TEMPLATES_DIR),
