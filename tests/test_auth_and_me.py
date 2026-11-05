@@ -301,20 +301,28 @@ async def test_token_cannot_access_or_refresh_after_account_disabled(
 
 
 async def test_delete_account_cancels_subscriptions_and_preserves_financial_history(
-    client, db_session, db_engine,
+    client,
+    db_session,
+    db_engine,
 ):
     pair = await register(client)
     user = await db_session.scalar(select(User).where(User.email == "buyer@example.com"))
     order, active, code = await seed_account(db_session, user)
     active.next_billing_at = NOW - timedelta(days=1)
     past_due = Subscription(
-        user_id=user.id, nominal_usd=10, payment_method_id="pm_past_due",
-        status=SubscriptionStatus.past_due, next_billing_at=NOW - timedelta(days=2),
+        user_id=user.id,
+        nominal_usd=10,
+        payment_method_id="pm_past_due",
+        status=SubscriptionStatus.past_due,
+        next_billing_at=NOW - timedelta(days=2),
         dunning_attempts=2,
     )
     cancelled = Subscription(
-        user_id=user.id, nominal_usd=10, payment_method_id="pm_cancelled",
-        status=SubscriptionStatus.cancelled, next_billing_at=NOW,
+        user_id=user.id,
+        nominal_usd=10,
+        payment_method_id="pm_cancelled",
+        status=SubscriptionStatus.cancelled,
+        next_billing_at=NOW,
         updated_at=NOW,
     )
     other = User(email="other@example.com")
@@ -375,7 +383,8 @@ async def test_delete_account_cancels_subscriptions_and_preserves_financial_hist
 
 async def test_delete_account_without_subscriptions(client, db_session, account):
     response = await client.delete(
-        ME, headers=authorization(tokens.create_access_token(account.id)),
+        ME,
+        headers=authorization(tokens.create_access_token(account.id)),
     )
     assert response.status_code == 204
     assert response.content == b""
@@ -383,16 +392,22 @@ async def test_delete_account_without_subscriptions(client, db_session, account)
     assert account.is_active is False
 
 
-@pytest.mark.parametrize("kind", ["missing", "malformed", "expired", "wrong_signature", "refresh", "inactive"])
+@pytest.mark.parametrize(
+    "kind", ["missing", "malformed", "expired", "wrong_signature", "refresh", "inactive"]
+)
 async def test_delete_account_rejects_invalid_authorization(client, db_session, account, kind):
     if kind == "missing":
         headers = {}
     elif kind == "malformed":
         headers = authorization("garbage")
     elif kind == "expired":
-        headers = authorization(signed_token(account.id, exp=datetime.now(timezone.utc) - timedelta(seconds=1)))
+        headers = authorization(
+            signed_token(account.id, exp=datetime.now(timezone.utc) - timedelta(seconds=1))
+        )
     elif kind == "wrong_signature":
-        headers = authorization(signed_token(account.id, secret="another-signing-secret-at-least-32-bytes"))
+        headers = authorization(
+            signed_token(account.id, secret="another-signing-secret-at-least-32-bytes")
+        )
     elif kind == "refresh":
         headers = authorization(tokens.create_refresh_token(account.id))
     else:
@@ -436,12 +451,16 @@ async def test_late_payment_does_not_reactivate_deleted_account_subscription(cli
     await db_session.commit()
     response = await client.delete(ME, headers=authorization(pair["access_token"]))
     assert response.status_code == 204
-    payment = VerifiedPayment.model_validate({
-        "id": "late-subscription-payment", "status": "succeeded", "paid": True,
-        "amount": {"value": "1500.00", "currency": "RUB"},
-        "metadata": {"order_id": str(order.id), "is_subscription": "true"},
-        "payment_method": {"id": "pm_late", "type": "bank_card", "saved": True},
-    })
+    payment = VerifiedPayment.model_validate(
+        {
+            "id": "late-subscription-payment",
+            "status": "succeeded",
+            "paid": True,
+            "amount": {"value": "1500.00", "currency": "RUB"},
+            "metadata": {"order_id": str(order.id), "is_subscription": "true"},
+            "payment_method": {"id": "pm_late", "type": "bank_card", "saved": True},
+        }
+    )
 
     delivery = await fulfill_verified_payment(db_session, payment)
 
@@ -451,16 +470,23 @@ async def test_late_payment_does_not_reactivate_deleted_account_subscription(cli
     assert card.status is GiftCardStatus.sold
     await db_session.refresh(user)
     assert user.is_active is False
-    subscriptions = list(await db_session.scalars(
-        select(Subscription).where(Subscription.user_id == user.id)
-        .execution_options(populate_existing=True),
-    ))
-    assert [(item.id, item.status) for item in subscriptions] == [(subscription.id, SubscriptionStatus.cancelled)]
+    subscriptions = list(
+        await db_session.scalars(
+            select(Subscription)
+            .where(Subscription.user_id == user.id)
+            .execution_options(populate_existing=True),
+        )
+    )
+    assert [(item.id, item.status) for item in subscriptions] == [
+        (subscription.id, SubscriptionStatus.cancelled)
+    ]
     assert await fulfill_verified_payment(db_session, payment) is None
 
 
 async def test_inactive_owner_cannot_be_charged_even_with_billable_subscription(
-    client, db_session, monkeypatch,
+    client,
+    db_session,
+    monkeypatch,
 ):
     pair = await register(client)
     user = await db_session.scalar(select(User).where(User.email == "buyer@example.com"))
@@ -478,7 +504,10 @@ async def test_inactive_owner_cannot_be_charged_even_with_billable_subscription(
 
 
 async def test_delete_account_waits_for_inflight_billing_without_fk_deadlock(
-    client, db_session, db_engine, monkeypatch,
+    client,
+    db_session,
+    db_engine,
+    monkeypatch,
 ):
     pair = await register(client)
     user = await db_session.scalar(select(User).where(User.email == "buyer@example.com"))
@@ -495,15 +524,21 @@ async def test_delete_account_waits_for_inflight_billing_without_fk_deadlock(
     maker = async_sessionmaker(db_engine, expire_on_commit=False)
     async with maker() as billing:
         locked = await SubscriptionRepository(billing).get_for_update(subscription_id)
-        deleting = asyncio.create_task(client.delete(ME, headers=authorization(pair["access_token"])))
+        deleting = asyncio.create_task(
+            client.delete(ME, headers=authorization(pair["access_token"]))
+        )
         try:
             await asyncio.wait_for(cancelling.wait(), timeout=5)
             assert not deleting.done()
-            billing.add(Order(
-                user_id=user_id, status=OrderStatus.paid,
-                items=[{"nominal_usd": 10, "quantity": 1, "price_rub": "1500.00"}],
-                total_amount_rub=Decimal("1500.00"), paid_at=NOW,
-            ))
+            billing.add(
+                Order(
+                    user_id=user_id,
+                    status=OrderStatus.paid,
+                    items=[{"nominal_usd": 10, "quantity": 1, "price_rub": "1500.00"}],
+                    total_amount_rub=Decimal("1500.00"),
+                    paid_at=NOW,
+                )
+            )
             locked.next_billing_at = NOW + timedelta(days=60)
             await asyncio.wait_for(billing.commit(), timeout=5)
             response = await asyncio.wait_for(deleting, timeout=5)
@@ -520,7 +555,10 @@ async def test_delete_account_waits_for_inflight_billing_without_fk_deadlock(
 
 
 async def test_activation_waits_for_deactivation_and_refreshes_cached_user(
-    client, db_session, db_engine, monkeypatch,
+    client,
+    db_session,
+    db_engine,
+    monkeypatch,
 ):
     pair = await register(client)
     user = await db_session.scalar(select(User).where(User.email == "buyer@example.com"))
@@ -542,13 +580,20 @@ async def test_activation_waits_for_deactivation_and_refreshes_cached_user(
         cached_user = await activation.get(User, user_id)
         activation_pid = await activation.scalar(text("SELECT pg_backend_pid()"))
         assert cached_user.is_active is True
-        deleting = asyncio.create_task(client.delete(ME, headers=authorization(pair["access_token"])))
+        deleting = asyncio.create_task(
+            client.delete(ME, headers=authorization(pair["access_token"]))
+        )
         activating = None
         try:
             await asyncio.wait_for(cancelling.wait(), timeout=5)
-            activating = asyncio.create_task(activate_subscription(
-                activation, user_id=user_id, nominal_usd=10, payment_method_id="pm_racing",
-            ))
+            activating = asyncio.create_task(
+                activate_subscription(
+                    activation,
+                    user_id=user_id,
+                    nominal_usd=10,
+                    payment_method_id="pm_racing",
+                )
+            )
             await wait_for_database_lock(maker, activation_pid, deactivation_pids[0])
             release.set()
             assert (await asyncio.wait_for(deleting, timeout=5)).status_code == 204
@@ -561,16 +606,22 @@ async def test_activation_waits_for_deactivation_and_refreshes_cached_user(
                 if not task.done():
                     task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-    subscriptions = list(await db_session.scalars(
-        select(Subscription).where(Subscription.user_id == user_id)
-        .execution_options(populate_existing=True),
-    ))
+    subscriptions = list(
+        await db_session.scalars(
+            select(Subscription)
+            .where(Subscription.user_id == user_id)
+            .execution_options(populate_existing=True),
+        )
+    )
     assert len(subscriptions) == 1
     assert subscriptions[0].status is SubscriptionStatus.cancelled
 
 
 async def test_deactivation_cancels_subscription_activated_in_parallel(
-    client, db_session, db_engine, monkeypatch,
+    client,
+    db_session,
+    db_engine,
+    monkeypatch,
 ):
     pair = await register(client)
     user = await db_session.scalar(select(User).where(User.email == "buyer@example.com"))
@@ -578,6 +629,7 @@ async def test_deactivation_cancels_subscription_activated_in_parallel(
     user_id = user.id
     started = asyncio.Event()
     deactivation_pids = []
+
     async def signal_deactivation(session, current_user):
         deactivation_pids.append(await session.scalar(text("SELECT pg_backend_pid()")))
         started.set()
@@ -588,10 +640,15 @@ async def test_deactivation_cancels_subscription_activated_in_parallel(
     async with maker() as activation:
         activation_pid = await activation.scalar(text("SELECT pg_backend_pid()"))
         created = await activate_subscription(
-            activation, user_id=user_id, nominal_usd=10, payment_method_id="pm_before_delete",
+            activation,
+            user_id=user_id,
+            nominal_usd=10,
+            payment_method_id="pm_before_delete",
         )
         assert created is not None
-        deleting = asyncio.create_task(client.delete(ME, headers=authorization(pair["access_token"])))
+        deleting = asyncio.create_task(
+            client.delete(ME, headers=authorization(pair["access_token"]))
+        )
         try:
             await asyncio.wait_for(started.wait(), timeout=5)
             await wait_for_database_lock(maker, deactivation_pids[0], activation_pid)
@@ -602,10 +659,13 @@ async def test_deactivation_cancels_subscription_activated_in_parallel(
             if not deleting.done():
                 deleting.cancel()
             await asyncio.gather(deleting, return_exceptions=True)
-    subscriptions = list(await db_session.scalars(
-        select(Subscription).where(Subscription.user_id == user_id)
-        .execution_options(populate_existing=True),
-    ))
+    subscriptions = list(
+        await db_session.scalars(
+            select(Subscription)
+            .where(Subscription.user_id == user_id)
+            .execution_options(populate_existing=True),
+        )
+    )
     assert len(subscriptions) == 2
     assert all(item.status is SubscriptionStatus.cancelled for item in subscriptions)
 
@@ -698,7 +758,11 @@ async def test_swagger_and_openapi_expose_bearer_and_all_auth_me_routes(client):
     assert bearer["description"]
     tag_descriptions = {tag["name"]: tag["description"] for tag in schema["tags"]}
     assert tag_descriptions["auth"] and tag_descriptions["me"]
-    paths = {path for path in schema["paths"] if path == ME or path.startswith(("/api/v1/auth/", "/api/v1/me/"))}
+    paths = {
+        path
+        for path in schema["paths"]
+        if path == ME or path.startswith(("/api/v1/auth/", "/api/v1/me/"))
+    }
     assert paths == {REGISTER, LOGIN, REFRESH, ME, ORDERS, SUBSCRIPTIONS}
     for path in paths:
         method = "delete" if path == ME else "get" if path in ME_PATHS else "post"

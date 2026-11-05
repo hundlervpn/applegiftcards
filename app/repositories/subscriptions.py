@@ -36,9 +36,7 @@ class SubscriptionRepository:
             update(Subscription)
             .where(
                 Subscription.user_id == user_id,
-                Subscription.status.in_(
-                    (SubscriptionStatus.active, SubscriptionStatus.past_due)
-                ),
+                Subscription.status.in_((SubscriptionStatus.active, SubscriptionStatus.past_due)),
             )
             .values(status=SubscriptionStatus.cancelled)
         )
