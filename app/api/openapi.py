@@ -139,7 +139,9 @@ def error_response(description: str, *, bearer: bool = False, **examples: str) -
         "description": description,
         "content": {
             "application/json": {
-                "examples": {name: {"value": {"detail": detail}} for name, detail in examples.items()},
+                "examples": {
+                    name: {"value": {"detail": detail}} for name, detail in examples.items()
+                },
             },
         },
     }

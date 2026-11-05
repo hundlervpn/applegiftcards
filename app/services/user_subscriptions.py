@@ -26,7 +26,9 @@ async def list_user_subscriptions(
         logger.warning("User subscriptions are unavailable (%s)", type(exc).__name__)
         raise UserSubscriptionsUnavailable("Could not read user subscriptions") from exc
 
-    masks = await get_card_masks([subscription.payment_method_id for subscription, _ in rows], settings)
+    masks = await get_card_masks(
+        [subscription.payment_method_id for subscription, _ in rows], settings
+    )
     return [
         SubscriptionItem(
             id=subscription.id,

@@ -12,7 +12,11 @@ from app.db.session import get_db
 from app.rate_limit import TOO_MANY_REQUESTS_DETAIL, limiter, login_limit, register_limit
 from app.schemas.auth import RefreshRequest, TokenResponse, UserLogin, UserRegister
 from app.services import auth as auth_service
-from app.services.auth import EmailAlreadyRegisteredError, InvalidCredentialsError, InvalidRefreshTokenError
+from app.services.auth import (
+    EmailAlreadyRegisteredError,
+    InvalidCredentialsError,
+    InvalidRefreshTokenError,
+)
 from app.services.tokens import TokenDecodeError, TokenExpiredError
 
 router = APIRouter(prefix="/auth", tags=["auth"])

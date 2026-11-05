@@ -136,7 +136,9 @@ async def test_invalid_access_is_rejected(client, db_session, payment_api, kind)
                 "iat": now - timedelta(minutes=2),
                 "exp": now + timedelta(minutes=-1 if kind == "expired" else 5),
             },
-            "another-test-signing-secret-at-least-32-bytes" if kind == "wrong_signature" else JWT_SECRET,
+            "another-test-signing-secret-at-least-32-bytes"
+            if kind == "wrong_signature"
+            else JWT_SECRET,
             algorithm="HS256",
         )
     response = await client.get(URL, headers={"Authorization": f"Bearer {token}"})
@@ -156,29 +158,45 @@ async def test_returns_all_statuses_and_only_masked_card_data(client, db_session
     user = await add_user(db_session)
     await add_price(db_session)
     subscriptions = [
-        await add_subscription(db_session, user.id, status=status)
-        for status in SubscriptionStatus
+        await add_subscription(db_session, user.id, status=status) for status in SubscriptionStatus
     ]
     response = await client.get(URL, headers=headers(user.id))
     assert response.status_code == 200
     items = response.json()["subscriptions"]
-    assert [item["id"] for item in items] == [subscription.id for subscription in reversed(subscriptions)]
+    assert [item["id"] for item in items] == [
+        subscription.id for subscription in reversed(subscriptions)
+    ]
     assert {item["status"] for item in items} == {status.value for status in SubscriptionStatus}
     for item in items:
         assert set(item) == {
-            "id", "nominal_usd", "status", "card_mask", "next_billing_at", "price_rub", "created_at",
+            "id",
+            "nominal_usd",
+            "status",
+            "card_mask",
+            "next_billing_at",
+            "price_rub",
+            "created_at",
         }
         assert item["nominal_usd"] == 10
         assert Decimal(item["price_rub"]) == Decimal("1500.25")
         assert item["card_mask"] == "**** 4242"
         assert datetime.fromisoformat(item["next_billing_at"]) == NOW + timedelta(days=30)
         assert datetime.fromisoformat(item["created_at"]) == NOW
-    for private in ("pm_own", "555555", "2030", "private card title", "private-metadata", API_SECRET):
+    for private in (
+        "pm_own",
+        "555555",
+        "2030",
+        "private card title",
+        "private-metadata",
+        API_SECRET,
+    ):
         assert private not in response.text
     assert len(payment_api) == 1
 
 
-async def test_only_current_users_subscriptions_and_methods_are_loaded(client, db_session, payment_api):
+async def test_only_current_users_subscriptions_and_methods_are_loaded(
+    client, db_session, payment_api
+):
     user = await add_user(db_session)
     other = await add_user(db_session, "other@example.com")
     await add_price(db_session)
@@ -192,7 +210,9 @@ async def test_only_current_users_subscriptions_and_methods_are_loaded(client, d
     assert "pm_foreign" not in response.text
 
 
-async def test_other_users_subscriptions_do_not_affect_empty_history(client, db_session, payment_api):
+async def test_other_users_subscriptions_do_not_affect_empty_history(
+    client, db_session, payment_api
+):
     user = await add_user(db_session)
     other = await add_user(db_session, "other@example.com")
     await add_price(db_session)
@@ -221,7 +241,9 @@ async def test_returns_current_status_date_and_price(client, db_session, payment
         assert Decimal(item["price_rub"]) == price.price_rub
 
 
-async def test_joins_prices_for_each_nominal_and_sorts_newest_first(client, db_session, payment_api):
+async def test_joins_prices_for_each_nominal_and_sorts_newest_first(
+    client, db_session, payment_api
+):
     user = await add_user(db_session)
     await add_price(db_session, 10, "1500.25")
     await add_price(db_session, 20, "2999.99")
@@ -231,7 +253,10 @@ async def test_joins_prices_for_each_nominal_and_sorts_newest_first(client, db_s
     assert response.status_code == 200
     items = response.json()["subscriptions"]
     assert [item["id"] for item in items] == [newer.id, older.id]
-    assert [Decimal(item["price_rub"]) for item in items] == [Decimal("2999.99"), Decimal("1500.25")]
+    assert [Decimal(item["price_rub"]) for item in items] == [
+        Decimal("2999.99"),
+        Decimal("1500.25"),
+    ]
 
 
 @pytest.mark.parametrize("size", [0, 1, 20])
@@ -257,7 +282,9 @@ async def test_database_query_count_is_constant(client, db_session, db_engine, p
     assert len(payment_api) == size
 
 
-async def test_database_failure_returns_generic_503(client, db_session, payment_api, monkeypatch, caplog):
+async def test_database_failure_returns_generic_503(
+    client, db_session, payment_api, monkeypatch, caplog
+):
     user = await add_user(db_session)
     monkeypatch.setattr(
         SubscriptionRepository,
@@ -272,7 +299,10 @@ async def test_database_failure_returns_generic_503(client, db_session, payment_
 
 
 async def test_missing_provider_credentials_keep_subscriptions_available(
-    client, db_session, payment_api, monkeypatch,
+    client,
+    db_session,
+    payment_api,
+    monkeypatch,
 ):
     user = await add_user(db_session)
     await add_price(db_session)
@@ -288,7 +318,9 @@ async def test_missing_provider_credentials_keep_subscriptions_available(
     assert payment_api == []
 
 
-async def test_provider_timeout_keeps_subscriptions_available(client, db_session, monkeypatch, caplog):
+async def test_provider_timeout_keeps_subscriptions_available(
+    client, db_session, monkeypatch, caplog
+):
     user = await add_user(db_session)
     await add_price(db_session)
     await add_subscription(db_session, user.id)

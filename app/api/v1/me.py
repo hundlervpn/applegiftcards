@@ -63,8 +63,12 @@ async def delete_my_account(
 )
 async def get_my_orders(
     user: CurrentUser,
-    limit: int = Query(default=20, ge=1, le=100, description="Размер страницы: от 1 до 100 заказов"),
-    offset: int = Query(default=0, ge=0, description="Количество заказов, пропускаемых с начала истории"),
+    limit: int = Query(
+        default=20, ge=1, le=100, description="Размер страницы: от 1 до 100 заказов"
+    ),
+    offset: int = Query(
+        default=0, ge=0, description="Количество заказов, пропускаемых с начала истории"
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> OrderHistoryResponse:
     try:

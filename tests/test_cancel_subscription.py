@@ -462,5 +462,7 @@ async def test_openapi_documents_owner_cancel(client):
     operation = schema["paths"]["/api/v1/subscriptions/{subscription_id}/cancel"]["post"]
     assert operation["tags"] == ["subscriptions"]
     assert {"200", "401", "403", "404"} <= set(operation["responses"])
-    example = operation["responses"]["200"]["content"]["application/json"]["examples"]["cancelled"]["value"]
+    example = operation["responses"]["200"]["content"]["application/json"]["examples"]["cancelled"][
+        "value"
+    ]
     assert example["status"] == "cancelled"

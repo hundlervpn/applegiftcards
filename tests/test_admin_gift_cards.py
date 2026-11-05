@@ -52,7 +52,9 @@ async def prices(db_session):
         ("POST", BATCH_URL, [(b"x-admin-token", b"\xff")], 403),
     ],
 )
-async def test_admin_access_requires_valid_token(client, db_session, method, url, headers, expected):
+async def test_admin_access_requires_valid_token(
+    client, db_session, method, url, headers, expected
+):
     response = await client.request(method, url, json=VALID_BATCH, headers=headers)
     assert response.status_code == expected
     assert await db_session.scalar(select(func.count()).select_from(GiftCard)) == 0
@@ -142,7 +144,9 @@ async def test_maximum_batch_size_is_accepted(client, db_session, prices):
 
 
 @pytest.mark.parametrize("key", ["", "not-a-valid-fernet-key"])
-async def test_encryption_key_failure_does_not_store_cards(client, db_session, prices, monkeypatch, key):
+async def test_encryption_key_failure_does_not_store_cards(
+    client, db_session, prices, monkeypatch, key
+):
     monkeypatch.setenv("FERNET_KEY", key)
     get_settings.cache_clear()
     response = await client.post(BATCH_URL, json=VALID_BATCH, headers=ADMIN_HEADERS)

@@ -24,7 +24,9 @@ async def test_empty_catalog(client, provider):
     assert provider.requests == []
 
 
-async def test_catalog_counts_only_available_and_orders_nominals(client, stock, checkout, session_factory):
+async def test_catalog_counts_only_available_and_orders_nominals(
+    client, stock, checkout, session_factory
+):
     cards = await stock(5, nominal=20, price="3000.50")
     await stock(0, nominal=50, price="7500.00")
     await stock(1, nominal=10)
@@ -47,7 +49,9 @@ async def test_catalog_counts_only_available_and_orders_nominals(client, stock, 
     assert reserved_id != sold_id
 
 
-async def test_checkout_commits_user_order_reservation_and_payment(client, stock, provider, session_factory):
+async def test_checkout_commits_user_order_reservation_and_payment(
+    client, stock, provider, session_factory
+):
     cards = await stock()
     response = await client.post(ORDERS, json={"email": "Buyer@EXAMPLE.COM", "nominal_usd": 10})
     assert response.status_code == 201
@@ -68,17 +72,24 @@ async def test_checkout_commits_user_order_reservation_and_payment(client, stock
         assert reserved.sale_price_rub == order.total_amount_rub
         assert available.status is GiftCardStatus.available
         assert available.order_id is None
-    request, = provider.requests
+    (request,) = provider.requests
     payload = json.loads(request.content)
-    assert request.headers["Idempotence-Key"] == str(uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}"))
+    assert request.headers["Idempotence-Key"] == str(
+        uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}")
+    )
     assert payload["amount"] == {"value": "1500.00", "currency": "RUB"}
     assert payload["metadata"] == {"order_id": str(order_id)}
     assert payload["capture"] is True
-    assert payload["confirmation"] == {"type": "redirect", "return_url": "https://shop.test/payment/complete"}
+    assert payload["confirmation"] == {
+        "type": "redirect",
+        "return_url": "https://shop.test/payment/complete",
+    }
     assert "save_payment_method" not in payload
 
 
-async def test_empty_stock_returns_409_without_order_or_provider_request(client, stock, provider, session_factory):
+async def test_empty_stock_returns_409_without_order_or_provider_request(
+    client, stock, provider, session_factory
+):
     await stock(0)
     response = await client.post(ORDERS, json={"email": "buyer@example.com", "nominal_usd": 10})
     assert response.status_code == 409
@@ -89,14 +100,19 @@ async def test_empty_stock_returns_409_without_order_or_provider_request(client,
     assert provider.requests == []
 
 
-@pytest.mark.parametrize("payload", [
-    {},
-    {"email": "invalid", "nominal_usd": 10},
-    {"email": "buyer@example.com", "nominal_usd": -10},
-    {"email": "buyer@example.com", "nominal_usd": 7},
-    {"email": "buyer@example.com", "nominal_usd": 50},
-])
-async def test_invalid_checkout_returns_422_without_writes(client, stock, provider, session_factory, payload):
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"email": "invalid", "nominal_usd": 10},
+        {"email": "buyer@example.com", "nominal_usd": -10},
+        {"email": "buyer@example.com", "nominal_usd": 7},
+        {"email": "buyer@example.com", "nominal_usd": 50},
+    ],
+)
+async def test_invalid_checkout_returns_422_without_writes(
+    client, stock, provider, session_factory, payload
+):
     await stock()
     response = await client.post(ORDERS, json=payload)
     assert response.status_code == 422
@@ -107,10 +123,17 @@ async def test_invalid_checkout_returns_422_without_writes(client, stock, provid
         assert set(await session.scalars(select(GiftCard.status))) == {GiftCardStatus.available}
 
 
-@pytest.mark.parametrize("failure,expected", [
-    ("timeout", 503), ("connection", 503), ("credentials", 503),
-    ("http_500", 502), ("json", 502), ("schema", 502),
-])
+@pytest.mark.parametrize(
+    "failure,expected",
+    [
+        ("timeout", 503),
+        ("connection", 503),
+        ("credentials", 503),
+        ("http_500", 502),
+        ("json", 502),
+        ("schema", 502),
+    ],
+)
 async def test_acquiring_failure_rolls_back_everything_and_allows_retry(
     client, stock, provider, integration_settings, session_factory, failure, expected
 ):
@@ -146,7 +169,9 @@ async def test_acquiring_failure_rolls_back_everything_and_allows_retry(
     assert retry.status_code == 201
 
 
-async def test_missing_subscription_returns_404_with_real_authorization(client, session_factory, provider):
+async def test_missing_subscription_returns_404_with_real_authorization(
+    client, session_factory, provider
+):
     async with session_factory() as session:
         user = User(email="owner@example.com")
         session.add(user)
@@ -166,11 +191,15 @@ async def test_concurrent_checkouts_cannot_oversell(client, stock, provider, ses
 
     async def buy(index):
         await barrier.wait()
-        return await client.post(ORDERS, json={"email": f"buyer{index}@example.com", "nominal_usd": 10})
+        return await client.post(
+            ORDERS, json={"email": f"buyer{index}@example.com", "nominal_usd": 10}
+        )
 
     responses = await asyncio.wait_for(asyncio.gather(*(buy(i) for i in range(8))), timeout=10)
     assert sorted(response.status_code for response in responses) == [201] * 3 + [409] * 5
-    order_ids = {response.json()["order_id"] for response in responses if response.status_code == 201}
+    order_ids = {
+        response.json()["order_id"] for response in responses if response.status_code == 201
+    }
     assert len(order_ids) == len(cards)
     assert len(provider.requests) == len(cards)
     async with session_factory() as session:

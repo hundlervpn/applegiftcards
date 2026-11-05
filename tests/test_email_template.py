@@ -42,14 +42,14 @@ class BuildGiftCardEmailTests(unittest.TestCase):
         self.assertIsNotNone(html_part)
         html = html_part.get_content()
 
-        self.assertIn("ОКНО В ЕВРОПУ", html)          # бренд
-        self.assertIn("№7", html)                     # order_id
-        self.assertIn("18.10.2026", html)             # order_date
-        self.assertIn("999.00", html)                 # total_amount_rub
-        self.assertIn("$10", html)                    # nominal_usd
-        self.assertIn(CODE_ONE, html)                 # codes
+        self.assertIn("ОКНО В ЕВРОПУ", html)  # бренд
+        self.assertIn("№7", html)  # order_id
+        self.assertIn("18.10.2026", html)  # order_date
+        self.assertIn("999.00", html)  # total_amount_rub
+        self.assertIn("$10", html)  # nominal_usd
+        self.assertIn(CODE_ONE, html)  # codes
         self.assertIn(CODE_TWO, html)
-        self.assertIn("buyer@example.com", html)      # recipient_email
+        self.assertIn("buyer@example.com", html)  # recipient_email
         self.assertIn("Redeem Gift Card or Code", html)  # инструкция
 
     def test_headers_are_filled(self) -> None:

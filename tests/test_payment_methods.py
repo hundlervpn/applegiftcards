@@ -58,20 +58,27 @@ async def test_queries_saved_payment_method_and_returns_only_mask(settings, monk
     assert str(request.url) == f"https://api.yookassa.ru/v3/payment_methods/{METHOD_ID}"
     expected = base64.b64encode(f"test-shop:{SECRET}".encode()).decode()
     assert request.headers["Authorization"] == f"Basic {expected}"
-    assert request.extensions["timeout"] == {key: 5.0 for key in ("connect", "read", "write", "pool")}
+    assert request.extensions["timeout"] == {
+        key: 5.0 for key in ("connect", "read", "write", "pool")
+    }
 
 
 @pytest.mark.parametrize("field", ["yookassa_shop_id", "yookassa_secret_key"])
 async def test_missing_credentials_do_not_call_provider(settings, monkeypatch, field):
     setattr(settings, field, "")
-    factory = lambda **kwargs: pytest.fail("Unexpected provider call")
+
+    def factory(**kwargs):
+        pytest.fail("Unexpected provider call")
+
     monkeypatch.setattr(payment_methods.httpx, "AsyncClient", factory)
     assert await get_card_masks([METHOD_ID], settings) == {METHOD_ID: None}
 
 
 async def test_empty_ids_do_not_create_http_client(settings, monkeypatch):
     monkeypatch.setattr(
-        payment_methods.httpx, "AsyncClient", lambda **kwargs: pytest.fail("Unexpected provider call"),
+        payment_methods.httpx,
+        "AsyncClient",
+        lambda **kwargs: pytest.fail("Unexpected provider call"),
     )
     assert await get_card_masks([], settings) == {}
 
@@ -86,7 +93,9 @@ async def test_provider_http_errors_hide_sensitive_response(settings, monkeypatc
 
 
 @pytest.mark.parametrize("error_type", [httpx.ReadTimeout, httpx.ConnectError])
-async def test_network_errors_do_not_expose_exception_details(settings, monkeypatch, caplog, error_type):
+async def test_network_errors_do_not_expose_exception_details(
+    settings, monkeypatch, caplog, error_type
+):
     def handler(request):
         raise error_type(SECRET, request=request)
 
@@ -96,7 +105,16 @@ async def test_network_errors_do_not_expose_exception_details(settings, monkeypa
     assert SECRET not in caplog.text
 
 
-@pytest.mark.parametrize("payload", [None, [], {}, {"id": METHOD_ID}, {"id": "other", "type": "bank_card", "card": {"last4": "0042"}}])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        [],
+        {},
+        {"id": METHOD_ID},
+        {"id": "other", "type": "bank_card", "card": {"last4": "0042"}},
+    ],
+)
 async def test_invalid_response_is_not_exposed(settings, monkeypatch, payload):
     install_transport(monkeypatch, lambda request: httpx.Response(200, json=payload))
     assert await get_card_masks([METHOD_ID], settings) == {METHOD_ID: None}
@@ -108,7 +126,9 @@ async def test_invalid_json_is_not_exposed(settings, monkeypatch, caplog):
     assert SECRET not in caplog.text
 
 
-@pytest.mark.parametrize("last4", ["", "123", "12345", "5555555555550042", "abcd", "１２３４", 1234, None])
+@pytest.mark.parametrize(
+    "last4", ["", "123", "12345", "5555555555550042", "abcd", "１２３４", 1234, None]
+)
 async def test_only_four_ascii_digits_can_be_returned(settings, monkeypatch, last4):
     payload = method_payload()
     payload["card"]["last4"] = last4
@@ -167,5 +187,6 @@ async def test_one_failure_does_not_hide_other_masks(settings, monkeypatch):
 
     install_transport(monkeypatch, handler)
     assert await get_card_masks([METHOD_ID, "pm_missing"], settings) == {
-        METHOD_ID: "**** 0042", "pm_missing": None,
+        METHOD_ID: "**** 0042",
+        "pm_missing": None,
     }

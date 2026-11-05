@@ -162,7 +162,10 @@ async def _assert_upgraded_schema(url: str) -> None:
 
     definitions = await _constraint_defs(url)
     assert "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT DEFERRABLE" in definitions
-    assert "FOREIGN KEY (nominal_usd) REFERENCES prices(nominal_usd) ON DELETE RESTRICT DEFERRABLE" in definitions
+    assert (
+        "FOREIGN KEY (nominal_usd) REFERENCES prices(nominal_usd) ON DELETE RESTRICT DEFERRABLE"
+        in definitions
+    )
     assert "dunning_attempts >= 0" in definitions
     assert "btrim" in definitions and "payment_method_id" in definitions
     await _assert_foreign_keys_are_initially_immediate(url)
