@@ -78,10 +78,7 @@ async def fulfill_verified_payment(
 
     try:
         expected_cards = Counter(
-            {
-                nominal: len(prices)
-                for nominal, prices in get_card_plan(order.items).items()
-            }
+            {nominal: len(prices) for nominal, prices in get_card_plan(order.items).items()}
         )
     except InvalidOrderItemsError as exc:
         raise OrderFulfillmentUnavailable(
@@ -91,22 +88,16 @@ async def fulfill_verified_payment(
     cards = await inventory_repo.lock_reserved_cards_for_order(session, order.id)
     actual_cards = Counter(card.nominal_usd for card in cards)
     if not cards or actual_cards != expected_cards:
-        raise OrderFulfillmentUnavailable(
-            "Reserved gift cards do not match the order"
-        )
+        raise OrderFulfillmentUnavailable("Reserved gift cards do not match the order")
 
     user = await users_repo.get_by_id(session, order.user_id)
     if user is None:
         raise OrderFulfillmentUnavailable("Order owner was not found")
 
     try:
-        gift_card_codes = tuple(
-            decrypt_code(card.code_encrypted) for card in cards
-        )
+        gift_card_codes = tuple(decrypt_code(card.code_encrypted) for card in cards)
     except GiftCardCryptoError as exc:
-        raise OrderFulfillmentUnavailable(
-            "Reserved gift card code could not be decrypted"
-        ) from exc
+        raise OrderFulfillmentUnavailable("Reserved gift card code could not be decrypted") from exc
 
     if is_subscription_payment(payment):
         # Та же транзакция, что и pending_payment → paid. Повтор вебхука
@@ -114,15 +105,11 @@ async def fulfill_verified_payment(
         nominals = list(expected_cards)
         if len(nominals) != 1:
             logger.warning("Subscription payment does not have a single nominal")
-            raise OrderFulfillmentUnavailable(
-                "Subscription order must contain a single nominal"
-            )
+            raise OrderFulfillmentUnavailable("Subscription order must contain a single nominal")
         payment_method_id = saved_payment_method_id(payment)
         if payment_method_id is None:
             logger.warning("Subscription payment has no saved payment method")
-            raise OrderFulfillmentUnavailable(
-                "Subscription payment has no saved payment method"
-            )
+            raise OrderFulfillmentUnavailable("Subscription payment has no saved payment method")
         try:
             await activate_subscription(
                 session,
@@ -131,9 +118,7 @@ async def fulfill_verified_payment(
                 payment_method_id=payment_method_id,
             )
         except SubscriptionActivationError as exc:
-            raise OrderFulfillmentUnavailable(
-                "Subscription could not be activated"
-            ) from exc
+            raise OrderFulfillmentUnavailable("Subscription could not be activated") from exc
 
     for card in cards:
         card.status = GiftCardStatus.sold

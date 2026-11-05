@@ -209,9 +209,10 @@ async def test_create_recurring_payment_posts_unattended_charge():
     assert payment.cancellation_reason is None
     request = httpx.Request("POST", capture.url)
     next(capture.auth.auth_flow(request))
-    assert request.headers["Authorization"] == "Basic " + base64.b64encode(
-        b"test-shop:test-secret"
-    ).decode()
+    assert (
+        request.headers["Authorization"]
+        == "Basic " + base64.b64encode(b"test-shop:test-secret").decode()
+    )
 
 
 async def test_create_recurring_payment_rejects_missing_credentials_and_bad_responses():
@@ -331,9 +332,7 @@ async def test_charge_subscription_creates_paid_order_sells_card_and_queues_emai
 
     await db_session.refresh(subscription)
     orders = list((await db_session.scalars(select(Order))).all())
-    cards = list(
-        (await db_session.scalars(select(GiftCard).order_by(GiftCard.id))).all()
-    )
+    cards = list((await db_session.scalars(select(GiftCard).order_by(GiftCard.id))).all())
 
     assert result.order_id == orders[0].id
     assert result.subscription_id == subscription.id
@@ -353,9 +352,7 @@ async def test_charge_subscription_creates_paid_order_sells_card_and_queues_emai
     assert order.status is OrderStatus.paid
     assert order.paid_at is not None
     assert order.total_amount_rub == PRICE
-    assert order.items == [
-        {"nominal_usd": 10, "quantity": 1, "price_rub": "1500.00"}
-    ]
+    assert order.items == [{"nominal_usd": 10, "quantity": 1, "price_rub": "1500.00"}]
 
     sold = [card for card in cards if card.status is GiftCardStatus.sold]
     available = [card for card in cards if card.status is GiftCardStatus.available]
@@ -564,10 +561,6 @@ async def _wait_for_background_tasks() -> None:
     import asyncio
 
     await asyncio.sleep(0)
-    tasks = [
-        task
-        for task in asyncio.all_tasks()
-        if task.get_name().startswith("gift-card-")
-    ]
+    tasks = [task for task in asyncio.all_tasks() if task.get_name().startswith("gift-card-")]
     if tasks:
         await asyncio.gather(*tasks)

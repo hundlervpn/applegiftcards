@@ -42,9 +42,7 @@ async def _deliver(message: EmailMessage, *, failure_log: str) -> None:
     settings = get_settings()
     password = _smtp_password(settings)
     tls_options = (
-        {"use_tls": True}
-        if settings.smtp_use_tls
-        else {"start_tls": settings.smtp_starttls}
+        {"use_tls": True} if settings.smtp_use_tls else {"start_tls": settings.smtp_starttls}
     )
     try:
         await aiosmtplib.send(
@@ -71,19 +69,21 @@ def build_gift_card_email(delivery: GiftCardDelivery, from_email: str) -> EmailM
         else ""
     )
     total_amount_rub = (
-        f"{delivery.total_amount_rub:.2f}"
-        if delivery.total_amount_rub is not None
-        else ""
+        f"{delivery.total_amount_rub:.2f}" if delivery.total_amount_rub is not None else ""
     )
 
-    html = _templates().get_template("email/gift_card_delivered.html").render(
-        order_id=delivery.order_id,
-        order_date=order_date,
-        total_amount_rub=total_amount_rub,
-        nominal_usd=nominal_usd,
-        codes=list(delivery.gift_card_codes),
-        items=items,
-        recipient_email=delivery.recipient_email,
+    html = (
+        _templates()
+        .get_template("email/gift_card_delivered.html")
+        .render(
+            order_id=delivery.order_id,
+            order_date=order_date,
+            total_amount_rub=total_amount_rub,
+            nominal_usd=nominal_usd,
+            codes=list(delivery.gift_card_codes),
+            items=items,
+            recipient_email=delivery.recipient_email,
+        )
     )
 
     codes_text = "\n".join(delivery.gift_card_codes)
@@ -110,9 +110,7 @@ def build_dunning_email(notice: DunningNotice, from_email: str) -> EmailMessage:
     if not notice.recipient_email or not notice.reason or not from_email:
         raise ValueError("recipient, reason and sender are required")
     if notice.kind == "retry" and (
-        notice.next_billing_at is None
-        or notice.retry_days is None
-        or not notice.card_update_url
+        notice.next_billing_at is None or notice.retry_days is None or not notice.card_update_url
     ):
         raise ValueError("retry notice requires the next attempt and a card update url")
 
@@ -156,21 +154,25 @@ def build_dunning_email(notice: DunningNotice, from_email: str) -> EmailMessage:
             f"Обновить карту: {notice.card_update_url}"
         )
 
-    html = _templates().get_template("email/subscription_dunning.html").render(
-        subject=subject,
-        preheader=preheader,
-        heading=heading,
-        intro=intro,
-        kind=notice.kind,
-        subscription_id=notice.subscription_id,
-        nominal_usd=notice.nominal_usd,
-        reason=notice.reason,
-        attempts=notice.attempts,
-        max_attempts=MAX_DUNNING_ATTEMPTS,
-        next_attempt=next_attempt,
-        retry_phrase=retry_phrase,
-        card_update_url=notice.card_update_url,
-        recipient_email=notice.recipient_email,
+    html = (
+        _templates()
+        .get_template("email/subscription_dunning.html")
+        .render(
+            subject=subject,
+            preheader=preheader,
+            heading=heading,
+            intro=intro,
+            kind=notice.kind,
+            subscription_id=notice.subscription_id,
+            nominal_usd=notice.nominal_usd,
+            reason=notice.reason,
+            attempts=notice.attempts,
+            max_attempts=MAX_DUNNING_ATTEMPTS,
+            next_attempt=next_attempt,
+            retry_phrase=retry_phrase,
+            card_update_url=notice.card_update_url,
+            recipient_email=notice.recipient_email,
+        )
     )
     message = EmailMessage()
     message["From"] = from_email
@@ -220,13 +222,17 @@ def build_subscription_cancelled_email(
         "Уже оплаченный период и выданные коды сохраняются.\n\n"
         "Если вы не отменяли подписку, напишите в поддержку."
     )
-    html = _templates().get_template("email/subscription_cancelled.html").render(
-        subject=subject,
-        preheader="Автопродление подписки отменено",
-        subscription_id=notice.subscription_id,
-        nominal_usd=notice.nominal_usd,
-        cancelled_at=cancelled_at_text,
-        recipient_email=notice.recipient_email,
+    html = (
+        _templates()
+        .get_template("email/subscription_cancelled.html")
+        .render(
+            subject=subject,
+            preheader="Автопродление подписки отменено",
+            subscription_id=notice.subscription_id,
+            nominal_usd=notice.nominal_usd,
+            cancelled_at=cancelled_at_text,
+            recipient_email=notice.recipient_email,
+        )
     )
     message = EmailMessage()
     message["From"] = from_email

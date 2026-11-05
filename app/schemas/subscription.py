@@ -13,7 +13,6 @@ class SubscriptionCancellationResponse(BaseModel):
     )
     updated_at: datetime = Field(
         description=(
-            "Время отмены, записанное в updated_at. "
-            "Повторная отмена возвращает прежнее значение."
+            "Время отмены, записанное в updated_at. Повторная отмена возвращает прежнее значение."
         ),
     )

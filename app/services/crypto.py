@@ -27,9 +27,7 @@ def _get_fernet() -> Fernet:
     try:
         return Fernet(raw.encode("ascii"))
     except Exception as exc:
-        raise GiftCardEncryptionKeyError(
-            "FERNET_KEY is not a valid Fernet key"
-        ) from exc
+        raise GiftCardEncryptionKeyError("FERNET_KEY is not a valid Fernet key") from exc
 
 
 def encrypt_code(plaintext: str) -> bytes:
@@ -48,6 +46,4 @@ def decrypt_code(token: bytes) -> str:
     except InvalidToken as exc:
         raise GiftCardDecryptionError("gift card code could not be decrypted") from exc
     except UnicodeDecodeError as exc:
-        raise GiftCardDecryptionError(
-            "decrypted gift card code is not valid UTF-8"
-        ) from exc
+        raise GiftCardDecryptionError("decrypted gift card code is not valid UTF-8") from exc

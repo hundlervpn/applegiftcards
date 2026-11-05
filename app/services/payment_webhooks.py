@@ -123,8 +123,6 @@ async def verify_yookassa_notification(
             "YooKassa webhook rejected: payment data mismatch in %s",
             ", ".join(mismatches),
         )
-        raise InvalidYooKassaNotification(
-            "YooKassa payment data does not match the notification"
-        )
+        raise InvalidYooKassaNotification("YooKassa payment data does not match the notification")
 
     return verified_payment

@@ -50,7 +50,11 @@ class BuildLowStockMessageTests(unittest.TestCase):
 
 class FindLowStockTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_only_nominals_below_threshold(self) -> None:
-        rows = [(10, Decimal("999.00"), 2), (20, Decimal("1999.00"), 5), (50, Decimal("4999.00"), 0)]
+        rows = [
+            (10, Decimal("999.00"), 2),
+            (20, Decimal("1999.00"), 5),
+            (50, Decimal("4999.00"), 0),
+        ]
         session = SimpleNamespace()
         with (
             patch("app.services.alerts.get_settings", return_value=make_settings()),

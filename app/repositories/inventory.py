@@ -7,9 +7,7 @@ from app.models.order import Order
 
 
 async def lock_order(session: AsyncSession, order_id: int) -> Order | None:
-    return await session.scalar(
-        select(Order).where(Order.id == order_id).with_for_update()
-    )
+    return await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
 
 
 async def lock_reserved_cards_for_order(

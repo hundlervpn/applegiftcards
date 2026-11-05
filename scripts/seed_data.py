@@ -29,10 +29,7 @@ def _price_rub(nominal_usd: int) -> Decimal:
 
 
 def _codes(nominal_usd: int) -> tuple[str, ...]:
-    return tuple(
-        f"TEST-{nominal_usd}USD-{index:04d}"
-        for index in range(1, CARDS_PER_NOMINAL + 1)
-    )
+    return tuple(f"TEST-{nominal_usd}USD-{index:04d}" for index in range(1, CARDS_PER_NOMINAL + 1))
 
 
 async def main() -> None:
@@ -44,9 +41,7 @@ async def main() -> None:
 
             for nominal_usd in NOMINALS_USD:
                 if await session.get(Price, nominal_usd) is None:
-                    session.add(
-                        Price(nominal_usd=nominal_usd, price_rub=_price_rub(nominal_usd))
-                    )
+                    session.add(Price(nominal_usd=nominal_usd, price_rub=_price_rub(nominal_usd)))
             await session.flush()
 
             card_count = 0

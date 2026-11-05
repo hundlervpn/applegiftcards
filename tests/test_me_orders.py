@@ -48,7 +48,9 @@ def authorization(user):
     return {"Authorization": f"Bearer {tokens.create_access_token(user.id)}"}
 
 
-async def add_order(session, user, status, codes=(), created_at=NOW, card_status=GiftCardStatus.sold):
+async def add_order(
+    session, user, status, codes=(), created_at=NOW, card_status=GiftCardStatus.sold
+):
     quantities = Counter(nominal for nominal, _ in codes) or Counter({10: 1})
     order = Order(
         user_id=user.id,
@@ -57,7 +59,9 @@ async def add_order(session, user, status, codes=(), created_at=NOW, card_status
             {"nominal_usd": nominal, "quantity": quantity, "price_rub": str(PRICES[nominal])}
             for nominal, quantity in quantities.items()
         ],
-        total_amount_rub=sum(PRICES[nominal] * quantity for nominal, quantity in quantities.items()),
+        total_amount_rub=sum(
+            PRICES[nominal] * quantity for nominal, quantity in quantities.items()
+        ),
         created_at=created_at,
         paid_at=created_at if status in {OrderStatus.paid, OrderStatus.delivered} else None,
     )
@@ -76,14 +80,18 @@ async def add_order(session, user, status, codes=(), created_at=NOW, card_status
     return order
 
 
-@pytest.mark.parametrize("headers", [{}, {"Authorization": "Basic abc"}, {"Authorization": "Bearer invalid"}])
+@pytest.mark.parametrize(
+    "headers", [{}, {"Authorization": "Basic abc"}, {"Authorization": "Bearer invalid"}]
+)
 async def test_missing_or_invalid_authorization_returns_401(client, headers):
     response = await client.get(URL, headers=headers)
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
 
 
-@pytest.mark.parametrize("kind", ["refresh", "expired", "wrong-signature", "unknown-user", "inactive"])
+@pytest.mark.parametrize(
+    "kind", ["refresh", "expired", "wrong-signature", "unknown-user", "inactive"]
+)
 async def test_rejects_unusable_credentials(client, db_session, buyers, kind):
     user = buyers[0]
     if kind == "refresh":
@@ -96,9 +104,13 @@ async def test_rejects_unusable_credentials(client, db_session, buyers, kind):
                 "sub": str(user.id),
                 "type": "access",
                 "iat": now - timedelta(minutes=2),
-                "exp": now - timedelta(minutes=1) if kind == "expired" else now + timedelta(minutes=15),
+                "exp": now - timedelta(minutes=1)
+                if kind == "expired"
+                else now + timedelta(minutes=15),
             },
-            settings.jwt_secret_key if kind == "expired" else "another-signing-secret-at-least-32-bytes",
+            settings.jwt_secret_key
+            if kind == "expired"
+            else "another-signing-secret-at-least-32-bytes",
             algorithm=settings.jwt_algorithm,
         )
     elif kind == "unknown-user":
@@ -119,7 +131,9 @@ async def test_empty_history_returns_empty_page(client, buyers):
 
 
 @pytest.mark.parametrize("status", list(OrderStatus))
-async def test_history_fields_and_card_visibility_follow_order_status(client, db_session, buyers, status):
+async def test_history_fields_and_card_visibility_follow_order_status(
+    client, db_session, buyers, status
+):
     order = await add_order(db_session, buyers[0], status, codes=[(10, "TEST-STATUS-CODE")])
     await db_session.commit()
     response = await client.get(URL, headers=authorization(buyers[0]))
@@ -144,7 +158,9 @@ async def test_users_only_see_their_own_orders_and_codes(client, db_session, buy
     first, second = buyers
     own = await add_order(db_session, first, OrderStatus.paid, codes=[(10, "FIRST-CODE")])
     other = await add_order(db_session, second, OrderStatus.delivered, codes=[(10, "SECOND-CODE")])
-    await add_order(db_session, second, OrderStatus.paid, codes=[(10, b"broken-foreign-ciphertext")])
+    await add_order(
+        db_session, second, OrderStatus.paid, codes=[(10, b"broken-foreign-ciphertext")]
+    )
     await db_session.commit()
     response = await client.get(URL, params={"user_id": second.id}, headers=authorization(first))
     assert response.status_code == 200
@@ -167,7 +183,9 @@ async def test_pagination_counts_all_own_orders_and_orders_newest_first(client, 
         )
         for i in range(5)
     ]
-    await add_order(db_session, second, OrderStatus.pending_payment, created_at=NOW + timedelta(days=1))
+    await add_order(
+        db_session, second, OrderStatus.pending_payment, created_at=NOW + timedelta(days=1)
+    )
     await db_session.commit()
     response = await client.get(URL, params={"limit": 2, "offset": 1}, headers=authorization(first))
     assert response.status_code == 200
@@ -191,7 +209,17 @@ async def test_offset_past_last_order_keeps_total(client, db_session, buyers):
     assert response.json() == {"orders": [], "total": 1}
 
 
-@pytest.mark.parametrize("query", [{"limit": 0}, {"limit": 101}, {"limit": -1}, {"offset": -1}, {"limit": "bad"}, {"offset": "bad"}])
+@pytest.mark.parametrize(
+    "query",
+    [
+        {"limit": 0},
+        {"limit": 101},
+        {"limit": -1},
+        {"offset": -1},
+        {"limit": "bad"},
+        {"offset": "bad"},
+    ],
+)
 async def test_invalid_pagination_returns_422(client, buyers, query):
     response = await client.get(URL, params=query, headers=authorization(buyers[0]))
     assert response.status_code == 422
@@ -247,12 +275,16 @@ async def test_reserved_cards_are_not_exposed_in_paid_order(client, db_session, 
 
 
 @pytest.mark.parametrize("failure", ["corrupt-code", "missing-key", "different-key"])
-async def test_decryption_errors_return_503_without_exposing_ciphertext(client, db_session, buyers, monkeypatch, failure):
+async def test_decryption_errors_return_503_without_exposing_ciphertext(
+    client, db_session, buyers, monkeypatch, failure
+):
     code = b"broken-ciphertext" if failure == "corrupt-code" else "TEST-SECRET-CODE"
     await add_order(db_session, buyers[0], OrderStatus.paid, codes=[(10, code)])
     await db_session.commit()
     if failure != "corrupt-code":
-        monkeypatch.setenv("FERNET_KEY", "" if failure == "missing-key" else Fernet.generate_key().decode("ascii"))
+        monkeypatch.setenv(
+            "FERNET_KEY", "" if failure == "missing-key" else Fernet.generate_key().decode("ascii")
+        )
         get_settings.cache_clear()
     response = await client.get(URL, headers=authorization(buyers[0]))
     assert response.status_code == 503
@@ -263,7 +295,10 @@ async def test_decryption_errors_return_503_without_exposing_ciphertext(client, 
 
 async def test_unpaid_order_does_not_decrypt_codes(client, db_session, buyers):
     await add_order(
-        db_session, buyers[0], OrderStatus.pending_payment, codes=[(10, b"broken-unpaid-ciphertext")]
+        db_session,
+        buyers[0],
+        OrderStatus.pending_payment,
+        codes=[(10, b"broken-unpaid-ciphertext")],
     )
     await db_session.commit()
     response = await client.get(URL, headers=authorization(buyers[0]))
@@ -274,7 +309,11 @@ async def test_unpaid_order_does_not_decrypt_codes(client, db_session, buyers):
 async def test_only_cards_from_requested_page_are_decrypted(client, db_session, buyers):
     await add_order(db_session, buyers[0], OrderStatus.paid, codes=[(10, b"broken-old-ciphertext")])
     newest = await add_order(
-        db_session, buyers[0], OrderStatus.paid, codes=[(10, "NEWEST-CODE")], created_at=NOW + timedelta(days=1)
+        db_session,
+        buyers[0],
+        OrderStatus.paid,
+        codes=[(10, "NEWEST-CODE")],
+        created_at=NOW + timedelta(days=1),
     )
     await db_session.commit()
     response = await client.get(URL, params={"limit": 1}, headers=authorization(buyers[0]))

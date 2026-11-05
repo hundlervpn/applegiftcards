@@ -56,8 +56,12 @@ async def test_purchase_webhook_email_and_duplicate_are_consistent(
     assert "TEST-10-0" in plain and "TEST-10-1" not in plain
     assert "1500.00" in plain
     assert smtp.await_args.kwargs == {
-        "hostname": "smtp.test", "port": 2525, "username": "test-mailer",
-        "password": "test-password", "timeout": 2.0, "start_tls": True,
+        "hostname": "smtp.test",
+        "port": 2525,
+        "username": "test-mailer",
+        "password": "test-password",
+        "timeout": 2.0,
+        "start_tls": True,
     }
     for _ in range(3):
         repeat = await client.post(WEBHOOK, json=notification)
@@ -66,7 +70,14 @@ async def test_purchase_webhook_email_and_duplicate_are_consistent(
     async with session_factory() as session:
         order = await session.get(Order, order_id)
         assert (order.paid_at, order.email_sent_at) == timestamps
-        assert await session.scalar(select(func.count()).select_from(GiftCard).where(GiftCard.status == GiftCardStatus.sold)) == 1
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(GiftCard)
+                .where(GiftCard.status == GiftCardStatus.sold)
+            )
+            == 1
+        )
     lookups = [request for request in provider.requests if request.method == "GET"]
     assert len(lookups) == 4
     assert {request.url.path for request in lookups} == {f"/v3/payments/payment-{order_id}"}
@@ -74,7 +85,9 @@ async def test_purchase_webhook_email_and_duplicate_are_consistent(
     assert catalog[0]["available_count"] == 1
 
 
-async def test_parallel_duplicate_webhooks_deliver_exactly_once(client, stock, checkout, provider, smtp, session_factory):
+async def test_parallel_duplicate_webhooks_deliver_exactly_once(
+    client, stock, checkout, provider, smtp, session_factory
+):
     await stock(2)
     order_id = await checkout()
     notification = provider.notification(order_id)
@@ -89,12 +102,30 @@ async def test_parallel_duplicate_webhooks_deliver_exactly_once(client, stock, c
     smtp.assert_awaited_once()
     async with session_factory() as session:
         assert (await session.get(Order, order_id)).status is OrderStatus.delivered
-        assert await session.scalar(select(func.count()).select_from(GiftCard).where(GiftCard.status == GiftCardStatus.sold)) == 1
-        assert await session.scalar(select(func.count()).select_from(GiftCard).where(GiftCard.status == GiftCardStatus.available)) == 1
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(GiftCard)
+                .where(GiftCard.status == GiftCardStatus.sold)
+            )
+            == 1
+        )
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(GiftCard)
+                .where(GiftCard.status == GiftCardStatus.available)
+            )
+            == 1
+        )
 
 
-@pytest.mark.parametrize("mutation", ["empty", "negative", "zero", "long_id", "missing_id", "wrong_type"])
-async def test_invalid_notification_returns_400_before_lookup(client, stock, checkout, provider, smtp, session_factory, mutation):
+@pytest.mark.parametrize(
+    "mutation", ["empty", "negative", "zero", "long_id", "missing_id", "wrong_type"]
+)
+async def test_invalid_notification_returns_400_before_lookup(
+    client, stock, checkout, provider, smtp, session_factory, mutation
+):
     await stock()
     order_id = await checkout()
     body = provider.notification(order_id)
@@ -116,13 +147,17 @@ async def test_invalid_notification_returns_400_before_lookup(client, stock, che
 
 
 async def test_malformed_json_returns_400(client, provider, smtp):
-    response = await client.post(WEBHOOK, content=b"{", headers={"Content-Type": "application/json"})
+    response = await client.post(
+        WEBHOOK, content=b"{", headers={"Content-Type": "application/json"}
+    )
     assert response.status_code == 400
     assert provider.requests == []
     smtp.assert_not_awaited()
 
 
-@pytest.mark.parametrize("mismatch", ["id", "status", "amount", "metadata", "event", "unsupported_status"])
+@pytest.mark.parametrize(
+    "mismatch", ["id", "status", "amount", "metadata", "event", "unsupported_status"]
+)
 async def test_untrusted_notification_returns_403_without_fulfillment(
     client, stock, checkout, provider, session_factory, smtp, mismatch
 ):
@@ -136,24 +171,36 @@ async def test_untrusted_notification_returns_403_without_fulfillment(
         body["event"] = "payment.refunded"
     else:
         returned = deepcopy(body["object"])
-        replacements = {"id": "different-id", "status": "canceled", "amount": {"value": "1.00", "currency": "RUB"}, "metadata": {"order_id": "999999"}}
+        replacements = {
+            "id": "different-id",
+            "status": "canceled",
+            "amount": {"value": "1.00", "currency": "RUB"},
+            "metadata": {"order_id": "999999"},
+        }
         returned[mismatch] = replacements[mismatch]
         provider.respond = lambda request: httpx.Response(200, json=returned)
     count = len(provider.requests)
     response = await client.post(WEBHOOK, json=body)
     assert response.status_code == 403
-    assert len(provider.requests) - count == (0 if mismatch in {"event", "unsupported_status"} else 1)
+    assert len(provider.requests) - count == (
+        0 if mismatch in {"event", "unsupported_status"} else 1
+    )
     await assert_pending(session_factory, order_id, smtp)
 
 
-@pytest.mark.parametrize("provider_status,expected", [(404, 403), (401, 503), (403, 503), (429, 503), (500, 503), (503, 503)])
+@pytest.mark.parametrize(
+    "provider_status,expected",
+    [(404, 403), (401, 503), (403, 503), (429, 503), (500, 503), (503, 503)],
+)
 async def test_verification_http_errors_preserve_reservation(
     client, stock, checkout, provider, session_factory, smtp, provider_status, expected
 ):
     await stock()
     order_id = await checkout()
     body = provider.notification(order_id)
-    provider.respond = lambda request: httpx.Response(provider_status, json={"description": "private provider error"})
+    provider.respond = lambda request: httpx.Response(
+        provider_status, json={"description": "private provider error"}
+    )
     response = await client.post(WEBHOOK, json=body)
     assert response.status_code == expected
     assert "private provider error" not in response.text
@@ -184,7 +231,9 @@ async def test_verification_unavailable_returns_503_without_fulfillment(
     await assert_pending(session_factory, order_id, smtp)
 
 
-@pytest.mark.parametrize("change", ["amount", "currency", "unknown_order", "invalid_order", "pending", "canceled"])
+@pytest.mark.parametrize(
+    "change", ["amount", "currency", "unknown_order", "invalid_order", "pending", "canceled"]
+)
 async def test_verified_but_inapplicable_payment_is_acknowledged_without_delivery(
     client, stock, checkout, provider, session_factory, smtp, change
 ):
@@ -197,7 +246,9 @@ async def test_verified_but_inapplicable_payment_is_acknowledged_without_deliver
         payment["amount"]["currency"] = "USD"
     elif change in {"unknown_order", "invalid_order"}:
         payment["metadata"]["order_id"] = "999999" if change == "unknown_order" else "invalid"
-    body = provider.notification(order_id, change if change in {"pending", "canceled"} else "succeeded")
+    body = provider.notification(
+        order_id, change if change in {"pending", "canceled"} else "succeeded"
+    )
     response = await client.post(WEBHOOK, json=body)
     assert response.status_code == 200
     await assert_pending(session_factory, order_id, smtp)
@@ -227,7 +278,14 @@ async def test_fulfillment_failure_returns_503_and_can_be_retried(
     async with session_factory() as session:
         order = await session.get(Order, order_id)
         assert order.status is OrderStatus.pending_payment and order.paid_at is None
-        assert await session.scalar(select(func.count()).select_from(GiftCard).where(GiftCard.status == GiftCardStatus.sold)) == 0
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(GiftCard)
+                .where(GiftCard.status == GiftCardStatus.sold)
+            )
+            == 0
+        )
         card = await session.get(GiftCard, cards[0])
         card.code_encrypted = encrypted
         card.status = GiftCardStatus.reserved
@@ -258,14 +316,23 @@ async def test_response_is_sent_before_email_and_other_requests_keep_running(
         async def capture(message):
             messages.append(message)
             await send(message)
+
         await application(scope, receive, capture)
 
-    async with AsyncClient(transport=httpx.ASGITransport(app=observe), base_url="http://test") as http:
+    async with AsyncClient(
+        transport=httpx.ASGITransport(app=observe), base_url="http://test"
+    ) as http:
         task = asyncio.create_task(http.post(WEBHOOK, json=body))
         try:
             await asyncio.wait_for(email_started.wait(), timeout=5)
-            assert any(message["type"] == "http.response.start" and message["status"] == 200 for message in messages)
-            assert any(message["type"] == "http.response.body" and not message.get("more_body", False) for message in messages)
+            assert any(
+                message["type"] == "http.response.start" and message["status"] == 200
+                for message in messages
+            )
+            assert any(
+                message["type"] == "http.response.body" and not message.get("more_body", False)
+                for message in messages
+            )
             assert not task.done()
             catalog = await asyncio.wait_for(client.get("/api/v1/catalog"), timeout=5)
             assert catalog.status_code == 200
@@ -288,7 +355,8 @@ async def test_smtp_failure_keeps_paid_order_and_does_not_sell_another_card(
     body = provider.notification(order_id)
     smtp.side_effect = aiosmtplib.SMTPException("test SMTP failure")
     async with AsyncClient(
-        transport=httpx.ASGITransport(app=application, raise_app_exceptions=False), base_url="http://test"
+        transport=httpx.ASGITransport(app=application, raise_app_exceptions=False),
+        base_url="http://test",
     ) as http:
         assert (await http.post(WEBHOOK, json=body)).status_code == 200
         assert (await http.post(WEBHOOK, json=body)).status_code == 200
@@ -297,5 +365,19 @@ async def test_smtp_failure_keeps_paid_order_and_does_not_sell_another_card(
         order = await session.get(Order, order_id)
         assert order.status is OrderStatus.paid
         assert order.paid_at is not None and order.email_sent_at is None
-        assert await session.scalar(select(func.count()).select_from(GiftCard).where(GiftCard.status == GiftCardStatus.sold)) == 1
-        assert await session.scalar(select(func.count()).select_from(GiftCard).where(GiftCard.status == GiftCardStatus.available)) == 1
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(GiftCard)
+                .where(GiftCard.status == GiftCardStatus.sold)
+            )
+            == 1
+        )
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(GiftCard)
+                .where(GiftCard.status == GiftCardStatus.available)
+            )
+            == 1
+        )

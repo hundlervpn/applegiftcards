@@ -98,7 +98,9 @@ def test_subscription_checks_and_billing_index():
     assert billing_index.unique is False
 
     user_index = next(
-        index for index in Subscription.__table__.indexes if index.name == "ix_subscriptions_user_id"
+        index
+        for index in Subscription.__table__.indexes
+        if index.name == "ix_subscriptions_user_id"
     )
     assert [column.name for column in user_index.columns] == ["user_id"]
 

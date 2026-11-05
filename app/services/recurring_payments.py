@@ -117,12 +117,7 @@ def _is_successful_charge(
     amount: Decimal,
     expected: Decimal,
 ) -> bool:
-    return (
-        status == "succeeded"
-        and paid is True
-        and currency == "RUB"
-        and amount == expected
-    )
+    return status == "succeeded" and paid is True and currency == "RUB" and amount == expected
 
 
 async def charge_subscription(
@@ -173,17 +168,13 @@ async def charge_subscription(
     cards = await inventory_repo.lock_available_cards(session, locked.nominal_usd, 1)
     if len(cards) != 1:
         await session.rollback()
-        raise RecurringFulfillmentError(
-            "No gift card available for the subscription nominal"
-        )
+        raise RecurringFulfillmentError("No gift card available for the subscription nominal")
     card = cards[0]
     try:
         code = decrypt_code(card.code_encrypted)
     except GiftCardCryptoError as exc:
         await session.rollback()
-        raise RecurringFulfillmentError(
-            "Gift card code could not be decrypted"
-        ) from exc
+        raise RecurringFulfillmentError("Gift card code could not be decrypted") from exc
 
     settings = get_settings()
     idempotence_key = recurring_idempotence_key(locked.id, expected_billing_at)

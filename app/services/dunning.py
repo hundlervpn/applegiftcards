@@ -15,9 +15,7 @@ from app.models.enums import SubscriptionStatus
 DUNNING_RETRY_DAYS = (1, 3, 5)
 MAX_DUNNING_ATTEMPTS = 3
 
-TRANSPORT_FAILURE_REASON = (
-    "Временная ошибка банка: платёжный сервис не подтвердил списание."
-)
+TRANSPORT_FAILURE_REASON = "Временная ошибка банка: платёжный сервис не подтвердил списание."
 GENERIC_DECLINE_REASON = "Банк отклонил платёж."
 
 _DECLINE_REASONS = {

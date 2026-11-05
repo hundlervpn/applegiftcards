@@ -38,7 +38,9 @@ async def test_skip_locked_selects_next_card_in_an_independent_transaction(stock
         first_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
         second_pid = await contender.scalar(text("SELECT pg_backend_pid()"))
         assert first_pid != second_pid
-        locked = await holder.scalar(select(GiftCard).where(GiftCard.id == card_ids[0]).with_for_update())
+        locked = await holder.scalar(
+            select(GiftCard).where(GiftCard.id == card_ids[0]).with_for_update()
+        )
         assert locked.status is GiftCardStatus.available
         order = await contender.get(Order, second_order)
         reserved = await asyncio.wait_for(reserve_gift_cards_for_order(contender, order), timeout=3)
@@ -55,7 +57,9 @@ async def test_skip_locked_selects_next_card_in_an_independent_transaction(stock
         assert all(card.status is GiftCardStatus.reserved for card in cards)
 
 
-async def test_uncommitted_reservation_is_skipped_and_rollback_releases_stock(stock, session_factory):
+async def test_uncommitted_reservation_is_skipped_and_rollback_releases_stock(
+    stock, session_factory
+):
     card_ids = await stock(1)
     first_order = await pending_order(session_factory, 1)
     second_order = await pending_order(session_factory, 2)
@@ -94,7 +98,9 @@ async def test_repeated_reservation_of_one_order_keeps_the_same_card(stock, sess
         assert other.status is GiftCardStatus.available and other.order_id is None
 
 
-async def test_insufficient_mixed_order_does_not_keep_locks_or_partial_reservations(stock, session_factory):
+async def test_insufficient_mixed_order_does_not_keep_locks_or_partial_reservations(
+    stock, session_factory
+):
     cards = await stock(1)
     await stock(0, nominal=20)
     items = [
@@ -125,4 +131,6 @@ async def test_requested_nominal_is_reserved_without_taking_other_stock(stock, s
         assert [card.id for card in reserved] == card_ids
         await session.commit()
         other = list(await session.scalars(select(GiftCard).where(GiftCard.nominal_usd == 20)))
-        assert all(card.status is GiftCardStatus.available and card.order_id is None for card in other)
+        assert all(
+            card.status is GiftCardStatus.available and card.order_id is None for card in other
+        )
