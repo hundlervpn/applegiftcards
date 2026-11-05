@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.openapi import (
@@ -11,8 +11,34 @@ from app.db.session import get_db
 from app.dependencies import CurrentUser
 from app.schemas.me import OrderHistoryResponse
 from app.services.order_history import OrderHistoryUnavailable, list_user_orders
+from app.services.user_profile import deactivate_user
 
 router = APIRouter(prefix="/me", tags=["me"])
+
+
+@router.delete(
+    "",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="Деактивация текущего пользователя",
+    description=(
+        "Деактивирует владельца JWT access-токена и отменяет все его подписки "
+        "со статусом active или past_due в одной транзакции. "
+        "Финансовая история, заказы и купленные карты сохраняются. "
+        "После деактивации вход, обновление токенов и доступ к защищённым ручкам запрещены."
+    ),
+    responses={
+        204: {"description": "Аккаунт деактивирован, автопродление подписок отменено. Тело ответа отсутствует."},
+        401: UNAUTHORIZED_RESPONSE,
+        403: FORBIDDEN_RESPONSE,
+    },
+)
+async def delete_my_account(
+    user: CurrentUser,
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    await deactivate_user(session, user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

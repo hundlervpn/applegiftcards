@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import SubscriptionStatus
 from app.models.subscription import Subscription
+from app.repositories import users as users_repo
 from app.repositories.subscriptions import SubscriptionRepository
 from app.schemas.payment_webhook import VerifiedPayment
 
@@ -42,7 +43,13 @@ async def activate_subscription(
     user_id: int,
     nominal_usd: int,
     payment_method_id: str,
-) -> Subscription:
+) -> Subscription | None:
+    user = await users_repo.get_for_update(session, user_id)
+    if user is None:
+        raise SubscriptionActivationError("Subscription owner was not found")
+    if not user.is_active:
+        return None
+
     next_billing_at = await session.scalar(text(_NEXT_BILLING_AT_SQL))
     if next_billing_at is None:
         raise SubscriptionActivationError("Could not compute the next billing date")

@@ -14,6 +14,16 @@ async def get_by_id(session: AsyncSession, user_id: int) -> User | None:
     return await session.get(User, user_id)
 
 
+async def get_for_update(session: AsyncSession, user_id: int) -> User | None:
+    statement = (
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update(key_share=True)
+        .execution_options(populate_existing=True)
+    )
+    return await session.scalar(statement)
+
+
 async def get_or_create(session: AsyncSession, email: str) -> User:
     email = email.strip().lower()
     existing = await get_by_email(session, email)
