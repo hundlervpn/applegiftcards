@@ -1,0 +1,89 @@
+meta {
+  name: 29 Create support ticket
+  type: http
+  seq: 29
+}
+
+post {
+  url: {{baseUrl}}/api/v1/support/tickets
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{authToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {"order_id": {{testOrderId}}, "subject": "Код не активируется", "message": "При активации подарочной карты появляется ошибка. Прошу проверить заказ."}
+}
+
+tests {
+  const get = key => bru.getVar(key) ?? bru.getEnvVar(key);
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("29 Create support ticket", function () {
+    try {
+      const status = res.getStatus();
+      const body = res.getBody();
+      expect(status).to.equal(201);
+      expect(body.status).to.equal('open');
+      expect(body.order_id).to.equal(Number(get('testOrderId')));
+      expect(body.id).to.be.a('number').and.above(0);
+      set('testSupportTicketId', body.id);
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Создание обращения по собственному заказу.
+}
+
+example {
+  name: 201 Created
+
+  request: {
+    url: {{baseUrl}}/api/v1/support/tickets
+    method: POST
+    mode: json
+    headers: {
+      Accept: application/json
+      Authorization: Bearer {{authToken}}
+      Content-Type: application/json
+    }
+
+    body:json: {
+      {"order_id": {{testOrderId}}, "subject": "Код не активируется", "message": "При активации подарочной карты появляется ошибка. Прошу проверить заказ."}
+    }
+  }
+
+  response: {
+    headers: {
+      Content-Type: application/json
+    }
+
+    status: {
+      code: 201
+      text: Created
+    }
+
+    body: {
+      type: json
+      content: '''
+        {
+          "id": 1,
+          "order_id": 123,
+          "subject": "Код не активируется",
+          "message": "При активации подарочной карты появляется ошибка. Прошу проверить заказ.",
+          "status": "open",
+          "created_at": "2026-11-05T12:00:00Z"
+        }
+      '''
+    }
+  }
+}

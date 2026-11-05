@@ -2511,8 +2511,198 @@
           ]
         },
         {
+          "id": "f5842fbf-17a9-5cf4-81ce-b4e52b4b8564",
+          "name": "29 Create support ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/support/tickets",
+            "description": "Создание обращения по собственному заказу.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"order_id\": {{testOrderId}}, \"subject\": \"Код не активируется\", \"message\": \"При активации подарочной карты появляется ошибка. Прошу проверить заказ.\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/support/tickets",
+                "description": "Создание обращения по собственному заказу.",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"order_id\": {{testOrderId}}, \"subject\": \"Код не активируется\", \"message\": \"При активации подарочной карты появляется ошибка. Прошу проверить заказ.\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"order_id\": 123,\n  \"subject\": \"Код не активируется\",\n  \"message\": \"При активации подарочной карты появляется ошибка. Прошу проверить заказ.\",\n  \"status\": \"open\",\n  \"created_at\": \"2026-11-05T12:00:00Z\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.environment.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"29 Create support ticket\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    const body = pm.response.json();",
+                  "    expect(status).to.equal(201);",
+                  "    expect(body.status).to.equal('open');",
+                  "    expect(body.order_id).to.equal(Number(get('testOrderId')));",
+                  "    expect(body.id).to.be.a('number').and.above(0);",
+                  "    set('testSupportTicketId', body.id);",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "9140d3ef-9b36-572a-8342-fdc544e07b70",
+          "name": "30 My support tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/support/tickets",
+            "description": "Только собственные обращения и их статусы.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/support/tickets",
+                "description": "Только собственные обращения и их статусы.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"tickets\": [\n    {\n      \"id\": 1,\n      \"order_id\": 123,\n      \"subject\": \"Код не активируется\",\n      \"message\": \"При активации подарочной карты появляется ошибка. Прошу проверить заказ.\",\n      \"status\": \"open\",\n      \"created_at\": \"2026-11-05T12:00:00Z\"\n    }\n  ],\n  \"total\": 1\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const get = key => pm.environment.get(key);",
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"30 My support tickets\", function () {",
+                  "  try {",
+                  "    const status = pm.response.code;",
+                  "    const body = pm.response.json();",
+                  "    expect(status).to.equal(200);",
+                  "    expect(body.total).to.be.at.least(1);",
+                  "    const ticket = body.tickets.find(item => item.id === Number(get('testSupportTicketId')));",
+                  "    expect(ticket).to.be.an('object');",
+                  "    expect(ticket.status).to.equal('open');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "id": "e276929f-46cb-5589-a9b9-3b8b681daa4d",
-          "name": "29 Deactivate account",
+          "name": "31 Deactivate account",
           "request": {
             "method": "DELETE",
             "header": [
@@ -2567,7 +2757,7 @@
                   "const set = (key, value) => pm.environment.set(key, value);",
                   "const expect = pm.expect;",
                   "const next = name => pm.execution.setNextRequest(name);",
-                  "pm.test(\"29 Deactivate account\", function () {",
+                  "pm.test(\"31 Deactivate account\", function () {",
                   "  try {",
                   "    expect(pm.response.code).to.equal(204);",
                   "    expect(pm.response.text()).to.equal('');",

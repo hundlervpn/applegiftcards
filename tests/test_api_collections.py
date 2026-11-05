@@ -35,6 +35,11 @@ from app.schemas.me_subscription import SubscriptionListResponse
 from app.schemas.order import OneTimeOrderCreate, OneTimeOrderResponse
 from app.schemas.payment_webhook import YooKassaNotification
 from app.schemas.subscription import SubscriptionCancellationResponse
+from app.schemas.support_ticket import (
+    SupportTicketCreate,
+    SupportTicketListResponse,
+    SupportTicketResponse,
+)
 from app.services import (
     order_checkout,
     order_fulfillment,
@@ -132,8 +137,16 @@ def test_collection_examples_match_application_dtos():
         route = operation(item["request"])
         if route is None:
             continue
-        _, path = route
+        method, path = route
         response = item["response"][0]
+        if path == "/api/v1/support/tickets":
+            if method == "post":
+                raw = item["request"]["body"]["raw"].replace("{{testOrderId}}", "123")
+                SupportTicketCreate.model_validate_json(raw)
+                SupportTicketResponse.model_validate_json(response["body"])
+            else:
+                SupportTicketListResponse.model_validate_json(response["body"])
+            continue
         if response["code"] >= 400:
             assert isinstance(json.loads(response["body"])["detail"], str)
             continue

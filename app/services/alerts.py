@@ -44,6 +44,33 @@ async def send_telegram_message(
     response.raise_for_status()
 
 
+async def notify_support_ticket(
+    ticket_id: int,
+    user_email: str,
+    subject: str,
+    order_id: int | None,
+    client: httpx.AsyncClient | None = None,
+) -> None:
+    settings = get_settings()
+    bot_token = settings.telegram_bot_token
+    chat_id = settings.telegram_admin_chat_id
+    if not bot_token or not chat_id:
+        logger.info("Telegram alerts are not configured, skipping support ticket notification")
+        return
+    order = f"#{order_id}" if order_id is not None else "не указан"
+    text = (
+        f"📩 Новый тикет поддержки #{ticket_id} от {user_email}!\nТема: {subject}\nЗаказ: {order}"
+    )
+    try:
+        if client is None:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as own_client:
+                await send_telegram_message(own_client, bot_token, chat_id, text)
+        else:
+            await send_telegram_message(client, bot_token, chat_id, text)
+    except httpx.HTTPError:
+        logger.warning("Could not send Telegram alert for support ticket id=%s", ticket_id)
+
+
 async def notify_low_stock(
     session: AsyncSession,
     client: httpx.AsyncClient | None = None,
