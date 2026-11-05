@@ -1,0 +1,63 @@
+meta {
+  name: 29 Deactivate account
+  type: http
+  seq: 29
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/me
+  body: none
+  auth: none
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer {{authToken}}
+}
+
+tests {
+  const set = (key, value) => bru.setVar(key, value);
+  const next = name => bru.runner.setNextRequest(name);
+  test("29 Deactivate account", function () {
+    try {
+      expect(res.getStatus()).to.equal(204);
+      expect(res.getBody()).to.equal('');
+      set('authToken', '');
+      set('refreshToken', '');
+    } catch (error) {
+      next(null);
+      throw error;
+    }
+  });
+}
+
+docs {
+  Деактивирует тестовый аккаунт и отменяет автопродление. Запускать последним: его токены перестанут работать.
+}
+
+example {
+  name: 204 No Content
+
+  request: {
+    url: {{baseUrl}}/api/v1/me
+    method: DELETE
+    headers: {
+      Accept: application/json
+      Authorization: Bearer {{authToken}}
+    }
+  }
+
+  response: {
+    status: {
+      code: 204
+      text: No Content
+    }
+
+    body: {
+      type: text
+      content: '''
+
+      '''
+    }
+  }
+}

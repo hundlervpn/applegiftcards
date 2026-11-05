@@ -158,7 +158,7 @@ async def charge_subscription(
         raise RecurringChargeNotAllowed("nominal is not for sale")
 
     user = await users_repo.get_by_id(session, locked.user_id)
-    if user is None or not user.email:
+    if user is None or not user.is_active or not user.email:
         await session.rollback()
         raise RecurringChargeNotAllowed("subscriber was not found")
     recipient_email = user.email

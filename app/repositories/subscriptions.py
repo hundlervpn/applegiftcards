@@ -2,7 +2,7 @@ from collections.abc import Collection
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import SubscriptionStatus
@@ -30,6 +30,16 @@ class SubscriptionRepository:
             .execution_options(populate_existing=True)
         )
         return await self._session.scalar(statement)
+
+    async def cancel_billable_for_user(self, user_id: int) -> None:
+        await self._session.execute(
+            update(Subscription)
+            .where(
+                Subscription.user_id == user_id,
+                Subscription.status.in_((SubscriptionStatus.active, SubscriptionStatus.past_due)),
+            )
+            .values(status=SubscriptionStatus.cancelled)
+        )
 
     async def list_for_user_with_prices(self, user_id: int) -> list[tuple[Subscription, Decimal]]:
         statement = (

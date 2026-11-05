@@ -3,7 +3,7 @@
     "_postman_id": "ce72bdeb-e6fd-5ed9-8e7b-aad523eee9b5",
     "name": "AWE API — purchase, webhook and account",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Только тестовый стенд. Полный прогон создаёт двух пользователей, два демо-кода, один заказ и подписку, затем отменяет её. Нужны цены в БД, ADMIN_API_TOKEN и ключи тестового магазина ЮKassa. Оплатите paymentUrl; шаг 12 ограниченно опрашивает ЮKassa. Запускайте всю коллекцию по порядку. Секреты задаются локально в окружении, а не в этом JSON. Инструкция: README.md → API-коллекции (SCRUM-30)."
+    "description": "Только тестовый стенд. Полный прогон создаёт двух пользователей, два демо-кода, один заказ и подписку, затем отменяет её и деактивирует тестовый аккаунт. Нужны цены в БД, ADMIN_API_TOKEN и ключи тестового магазина ЮKassa. Оплатите paymentUrl; шаг 12 ограниченно опрашивает ЮKassa. Запускайте всю коллекцию по порядку. Секреты задаются локально в окружении, а не в этом JSON. Инструкция: README.md → API-коллекции (SCRUM-30)."
   },
   "item": [
     {
@@ -2500,6 +2500,79 @@
                   "    expect(status).to.equal(403);",
                   "    const body = pm.response.json();",
                   "    expect(body.detail).to.equal('Forbidden');",
+                  "  } catch (error) {",
+                  "    next(null);",
+                  "    throw error;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "e276929f-46cb-5589-a9b9-3b8b681daa4d",
+          "name": "29 Deactivate account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me",
+            "description": "Деактивирует тестовый аккаунт и отменяет автопродление. Запускать последним: его токены перестанут работать.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/me",
+                "description": "Деактивирует тестовый аккаунт и отменяет автопродление. Запускать последним: его токены перестанут работать.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": ""
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const set = (key, value) => pm.environment.set(key, value);",
+                  "const expect = pm.expect;",
+                  "const next = name => pm.execution.setNextRequest(name);",
+                  "pm.test(\"29 Deactivate account\", function () {",
+                  "  try {",
+                  "    expect(pm.response.code).to.equal(204);",
+                  "    expect(pm.response.text()).to.equal('');",
+                  "    set('authToken', '');",
+                  "    set('refreshToken', '');",
                   "  } catch (error) {",
                   "    next(null);",
                   "    throw error;",
