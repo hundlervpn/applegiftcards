@@ -76,9 +76,7 @@ class SubscriptionRepository:
             raise ValueError("as_of must be timezone-aware")
 
         filters = [
-            Subscription.status.in_(
-                (SubscriptionStatus.active, SubscriptionStatus.past_due)
-            ),
+            Subscription.status.in_((SubscriptionStatus.active, SubscriptionStatus.past_due)),
             Subscription.next_billing_at <= moment,
         ]
         if exclude_ids:

@@ -18,8 +18,7 @@ def _cancellation_reason(data: dict) -> str | None:
     if not isinstance(reason, str) or not reason or len(reason) > 64:
         return None
     if any(
-        not (character.islower() or character.isdigit() or character == "_")
-        for character in reason
+        not (character.islower() or character.isdigit() or character == "_") for character in reason
     ):
         return None
     return reason
@@ -69,9 +68,7 @@ async def create_payment(
     save_payment_method: bool = False,
 ) -> PaymentSession:
     if not shop_id or not secret_key:
-        raise AcquirerConfigurationError(
-            "YooKassa shop ID and secret key must be configured"
-        )
+        raise AcquirerConfigurationError("YooKassa shop ID and secret key must be configured")
 
     idempotence_key = str(uuid5(NAMESPACE_URL, f"giftcodes:yookassa:order:{order_id}"))
     metadata = {"order_id": str(order_id)}
@@ -144,9 +141,7 @@ async def create_recurring_payment(
     В теле нет confirmation: покупатель не подтверждает платёж в браузере.
     """
     if not shop_id or not secret_key:
-        raise AcquirerConfigurationError(
-            "YooKassa shop ID and secret key must be configured"
-        )
+        raise AcquirerConfigurationError("YooKassa shop ID and secret key must be configured")
     if not payment_method_id.strip():
         raise AcquirerConfigurationError("payment_method_id is required")
     if not idempotence_key or len(idempotence_key) > 64:

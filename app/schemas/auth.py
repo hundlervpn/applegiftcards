@@ -63,7 +63,9 @@ class UserLogin(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str = Field(description="JWT для доступа к /me/* через заголовок Authorization: Bearer")
+    access_token: str = Field(
+        description="JWT для доступа к /me/* через заголовок Authorization: Bearer"
+    )
     refresh_token: str = Field(description="JWT для обновления пары токенов через /auth/refresh")
     token_type: str = Field(default="bearer", description="Схема авторизации для access-токена")
 

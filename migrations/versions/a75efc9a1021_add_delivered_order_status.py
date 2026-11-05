@@ -16,8 +16,7 @@ def downgrade() -> None:
     op.execute("ALTER TABLE orders ALTER COLUMN status DROP DEFAULT")
     op.execute("ALTER TYPE order_status RENAME TO order_status_with_delivered")
     op.execute(
-        "CREATE TYPE order_status AS ENUM "
-        "('pending_payment', 'paid', 'completed', 'cancelled')"
+        "CREATE TYPE order_status AS ENUM ('pending_payment', 'paid', 'completed', 'cancelled')"
     )
     op.execute(
         "ALTER TABLE orders ALTER COLUMN status TYPE order_status "
@@ -25,7 +24,4 @@ def downgrade() -> None:
         "ELSE status::text END)::order_status"
     )
     op.execute("DROP TYPE order_status_with_delivered")
-    op.execute(
-        "ALTER TABLE orders ALTER COLUMN status "
-        "SET DEFAULT 'pending_payment'::order_status"
-    )
+    op.execute("ALTER TABLE orders ALTER COLUMN status SET DEFAULT 'pending_payment'::order_status")

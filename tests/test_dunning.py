@@ -247,15 +247,21 @@ async def _seed(session, *, status=SubscriptionStatus.active, attempts=0, billin
         ("issuer_unavailable", "Банк временно недоступен."),
     ],
 )
-async def test_decline_marks_past_due_and_emails_the_reason(db_session, monkeypatch, reason_code, reason_text):
+async def test_decline_marks_past_due_and_emails_the_reason(
+    db_session, monkeypatch, reason_code, reason_text
+):
     subscription = await _seed(db_session)
     notices: list[DunningNotice] = []
     monkeypatch.setattr("app.services.recurring_payments.get_settings", _settings)
     monkeypatch.setattr("app.services.recurring_payments.decrypt_code", lambda _code: "GIFT-1")
     monkeypatch.setattr("app.services.recurring_payments.utcnow", lambda: AS_OF)
-    monkeypatch.setattr("app.services.payments.httpx.AsyncClient", _Gateway(_refused(reason_code)).client)
+    monkeypatch.setattr(
+        "app.services.payments.httpx.AsyncClient", _Gateway(_refused(reason_code)).client
+    )
     monkeypatch.setattr("app.services.recurring_payments.enqueue_dunning_notice", notices.append)
-    monkeypatch.setattr("app.services.recurring_payments.enqueue_gift_card_delivery", lambda _delivery: None)
+    monkeypatch.setattr(
+        "app.services.recurring_payments.enqueue_gift_card_delivery", lambda _delivery: None
+    )
 
     with pytest.raises(RecurringPaymentDeclined):
         await charge_subscription(db_session, subscription)
@@ -276,7 +282,9 @@ async def test_decline_marks_past_due_and_emails_the_reason(db_session, monkeypa
     assert METHOD_ID not in notices[0].reason
 
 
-async def test_three_failures_cancel_subscription_and_remove_it_from_billing(db_engine, monkeypatch):
+async def test_three_failures_cancel_subscription_and_remove_it_from_billing(
+    db_engine, monkeypatch
+):
     maker = async_sessionmaker(db_engine, expire_on_commit=False)
     async with maker() as setup:
         subscription = await _seed(setup)
@@ -331,7 +339,9 @@ async def test_successful_retry_resumes_active_subscription(db_session, monkeypa
     monkeypatch.setattr("app.services.recurring_payments.decrypt_code", lambda _code: "GIFT-1")
     monkeypatch.setattr("app.services.payments.httpx.AsyncClient", _Gateway(_succeeded()).client)
     monkeypatch.setattr("app.services.recurring_payments.enqueue_dunning_notice", notices.append)
-    monkeypatch.setattr("app.services.recurring_payments.enqueue_gift_card_delivery", deliveries.append)
+    monkeypatch.setattr(
+        "app.services.recurring_payments.enqueue_gift_card_delivery", deliveries.append
+    )
 
     result = await charge_subscription(db_session, subscription)
 

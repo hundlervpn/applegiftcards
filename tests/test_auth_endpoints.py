@@ -25,7 +25,7 @@ GENERIC_401_DETAIL = "Invalid email or password"
 async def test_register_returns_201_tokens_and_normalizes_email(client, db_session):
     response = await client.post(
         REGISTER_URL,
-        json={"email": f"  NewUser@Example.COM  ", "password": PASSWORD},
+        json={"email": "  NewUser@Example.COM  ", "password": PASSWORD},
     )
 
     assert response.status_code == 201
@@ -43,7 +43,9 @@ async def test_register_returns_201_tokens_and_normalizes_email(client, db_sessi
 
 async def test_register_duplicate_email_returns_409(client):
     first = await client.post(REGISTER_URL, json={"email": "dup@example.com", "password": PASSWORD})
-    second = await client.post(REGISTER_URL, json={"email": "DUP@example.com", "password": PASSWORD})
+    second = await client.post(
+        REGISTER_URL, json={"email": "DUP@example.com", "password": PASSWORD}
+    )
 
     assert first.status_code == 201
     assert second.status_code == 409
@@ -117,9 +119,13 @@ async def test_login_inactive_user_returns_401(client, db_session):
 
 
 async def test_refresh_returns_new_token_pair(client):
-    registered = await client.post(REGISTER_URL, json={"email": "refresh@example.com", "password": PASSWORD})
+    registered = await client.post(
+        REGISTER_URL, json={"email": "refresh@example.com", "password": PASSWORD}
+    )
 
-    response = await client.post(REFRESH_URL, json={"refresh_token": registered.json()["refresh_token"]})
+    response = await client.post(
+        REFRESH_URL, json={"refresh_token": registered.json()["refresh_token"]}
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -130,9 +136,13 @@ async def test_refresh_returns_new_token_pair(client):
 
 
 async def test_refresh_rejects_access_token_as_refresh(client):
-    registered = await client.post(REGISTER_URL, json={"email": "wrongtype@example.com", "password": PASSWORD})
+    registered = await client.post(
+        REGISTER_URL, json={"email": "wrongtype@example.com", "password": PASSWORD}
+    )
 
-    response = await client.post(REFRESH_URL, json={"refresh_token": registered.json()["access_token"]})
+    response = await client.post(
+        REFRESH_URL, json={"refresh_token": registered.json()["access_token"]}
+    )
 
     assert response.status_code == 401
 

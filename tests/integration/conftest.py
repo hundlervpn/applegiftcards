@@ -31,7 +31,10 @@ class YooKassaSandbox:
     async def handle(self, request):
         self.requests.append(request)
         assert request.url.host == "api.yookassa.ru"
-        assert request.headers["Authorization"] == "Basic " + b64encode(b"test-shop:test-secret").decode()
+        assert (
+            request.headers["Authorization"]
+            == "Basic " + b64encode(b"test-shop:test-secret").decode()
+        )
         if self.respond is not None:
             return self.respond(request)
         if request.method == "POST" and request.url.path == "/v3/payments":
@@ -168,9 +171,7 @@ def stock(session_factory):
 @pytest.fixture
 def checkout(client):
     async def create(email="buyer@example.com", nominal=10):
-        response = await client.post(
-            ORDER_URL, json={"email": email, "nominal_usd": nominal}
-        )
+        response = await client.post(ORDER_URL, json={"email": email, "nominal_usd": nominal})
         assert response.status_code == 201, response.text
         return response.json()["order_id"]
 

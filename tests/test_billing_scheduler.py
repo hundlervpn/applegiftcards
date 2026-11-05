@@ -353,10 +353,7 @@ async def test_cancel_during_charge_lets_that_charge_finish(db_engine):
     assert finished.is_set()
     assert calls == [in_flight_id]
     assert db_engine.pool.checkedout() == 0
-    assert all(
-        not task.get_name().startswith("billing-charge-")
-        for task in asyncio.all_tasks()
-    )
+    assert all(not task.get_name().startswith("billing-charge-") for task in asyncio.all_tasks())
     async with maker() as check:
         stored = await check.get(Subscription, in_flight_id)
         left = await check.get(Subscription, waiting_id)
@@ -522,9 +519,7 @@ async def test_lifespan_starts_scheduler_and_disposes_engine_after_it_stops(monk
 
     async with app.router.lifespan_context(app):
         await asyncio.sleep(0)
-        running = [
-            task for task in asyncio.all_tasks() if task.get_name() == "billing-scheduler"
-        ]
+        running = [task for task in asyncio.all_tasks() if task.get_name() == "billing-scheduler"]
         assert len(running) == 1
         assert events == ["started"]
 

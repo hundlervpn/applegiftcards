@@ -305,9 +305,7 @@ def test_order_endpoint_forwards_subscription_flag():
 
 
 async def test_verify_reads_saved_method_from_yookassa_not_from_webhook():
-    api = _YooKassaApi(
-        _payment_body(42, subscription=True, method_id=SAVED_METHOD_ID, saved=True)
-    )
+    api = _YooKassaApi(_payment_body(42, subscription=True, method_id=SAVED_METHOD_ID, saved=True))
     notification = YooKassaNotification.model_validate(
         _notification(42, subscription=True, method_id="attacker-method")
     )
@@ -383,9 +381,7 @@ async def test_succeeded_webhook_saves_subscription_once(db_engine, db_session):
     assert fresh_order.status is OrderStatus.paid
 
 
-async def test_subscription_webhook_without_saved_method_keeps_order_pending(
-    db_engine, db_session
-):
+async def test_subscription_webhook_without_saved_method_keeps_order_pending(db_engine, db_session):
     _user, order = await _seed_pending_order(db_session, email="nosave@example.com")
     order_id = order.id
     api_payload = _payment_body(

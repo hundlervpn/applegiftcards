@@ -74,6 +74,7 @@ async def get_card_masks(
         auth=httpx.BasicAuth(settings.yookassa_shop_id, settings.yookassa_secret_key),
         timeout=5.0,
     ) as client:
+
         async def lookup(payment_method_id: str) -> str | None:
             async with semaphore:
                 return await _get_card_mask(client, payment_method_id)

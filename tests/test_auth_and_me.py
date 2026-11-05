@@ -180,13 +180,19 @@ async def test_each_user_only_sees_own_data_before_and_after_refresh(client, db_
             assert [item["id"] for item in orders.json()["orders"]] == [own_order.id]
             assert orders.json()["orders"][0]["cards"] == [{"nominal_usd": 10, "code": own_code}]
             assert foreign_code not in orders.text
-            subscriptions = await client.get(SUBSCRIPTIONS, params={"user_id": foreign_user.id}, headers=headers)
+            subscriptions = await client.get(
+                SUBSCRIPTIONS, params={"user_id": foreign_user.id}, headers=headers
+            )
             assert subscriptions.status_code == 200
-            assert [item["id"] for item in subscriptions.json()["subscriptions"]] == [own_subscription.id]
+            assert [item["id"] for item in subscriptions.json()["subscriptions"]] == [
+                own_subscription.id
+            ]
 
 
 @pytest.mark.parametrize("path", ME_PATHS)
-@pytest.mark.parametrize("headers", [{}, {"Authorization": "Basic abc"}, {"Authorization": "Bearer"}])
+@pytest.mark.parametrize(
+    "headers", [{}, {"Authorization": "Basic abc"}, {"Authorization": "Bearer"}]
+)
 async def test_protected_routes_require_bearer(client, path, headers):
     response = await client.get(path, headers=headers)
     assert response.status_code == 401
@@ -203,7 +209,9 @@ async def test_malformed_jwt_is_rejected(client, path, token):
 
 
 @pytest.mark.parametrize("path", ME_PATHS)
-@pytest.mark.parametrize("kind", ["wrong_signature", "unsigned", "wrong_algorithm", "expired", "future_iat", "refresh"])
+@pytest.mark.parametrize(
+    "kind", ["wrong_signature", "unsigned", "wrong_algorithm", "expired", "future_iat", "refresh"]
+)
 async def test_untrusted_or_unusable_jwt_is_rejected(client, account, path, kind):
     if kind == "wrong_signature":
         token = signed_token(account.id, secret="another-signing-secret-at-least-32-bytes")
@@ -225,7 +233,9 @@ async def test_untrusted_or_unusable_jwt_is_rejected(client, account, path, kind
 
 
 @pytest.mark.parametrize("path", ME_PATHS)
-async def test_changed_subject_with_original_signature_is_rejected(client, db_session, account, path):
+async def test_changed_subject_with_original_signature_is_rejected(
+    client, db_session, account, path
+):
     other = User(email="other@example.com")
     db_session.add(other)
     await db_session.commit()
@@ -234,19 +244,25 @@ async def test_changed_subject_with_original_signature_is_rejected(client, db_se
     claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
     claims["sub"] = str(other.id)
     forged_payload = base64.urlsafe_b64encode(json.dumps(claims).encode()).rstrip(b"=").decode()
-    response = await client.get(path, headers=authorization(f"{header}.{forged_payload}.{signature}"))
+    response = await client.get(
+        path, headers=authorization(f"{header}.{forged_payload}.{signature}")
+    )
     assert response.status_code == 401
 
 
 @pytest.mark.parametrize("path", ME_PATHS)
-@pytest.mark.parametrize("claims", [{"sub": "not-an-id"}, {"sub": "99999999"}, {"type": "unknown"}, {"sub": None}])
+@pytest.mark.parametrize(
+    "claims", [{"sub": "not-an-id"}, {"sub": "99999999"}, {"type": "unknown"}, {"sub": None}]
+)
 async def test_invalid_subject_or_type_is_rejected(client, account, path, claims):
     response = await client.get(path, headers=authorization(signed_token(account.id, **claims)))
     assert response.status_code == 401
 
 
 @pytest.mark.parametrize("change", ["deactivate", "delete"])
-async def test_token_cannot_access_or_refresh_after_account_disabled(client, db_session, account, change):
+async def test_token_cannot_access_or_refresh_after_account_disabled(
+    client, db_session, account, change
+):
     access = tokens.create_access_token(account.id)
     refresh = tokens.create_refresh_token(account.id)
     if change == "deactivate":
@@ -270,9 +286,13 @@ async def test_refresh_rejects_invalid_tokens(client, account, kind):
     elif kind == "access":
         token = tokens.create_access_token(account.id)
     elif kind == "expired":
-        token = signed_token(account.id, token_type="refresh", exp=datetime.now(timezone.utc) - timedelta(seconds=1))
+        token = signed_token(
+            account.id, token_type="refresh", exp=datetime.now(timezone.utc) - timedelta(seconds=1)
+        )
     elif kind == "wrong_signature":
-        token = signed_token(account.id, token_type="refresh", secret="another-signing-secret-at-least-32-bytes")
+        token = signed_token(
+            account.id, token_type="refresh", secret="another-signing-secret-at-least-32-bytes"
+        )
     else:
         token = signed_token(account.id, token_type="refresh", secret="", algorithm="none")
     response = await client.post(REFRESH, json={"refresh_token": token})
@@ -283,17 +303,26 @@ async def test_refresh_rejects_invalid_tokens(client, account, kind):
 
 async def test_login_errors_do_not_disclose_email(client):
     await register(client)
-    known = await client.post(LOGIN, json={"email": "buyer@example.com", "password": "WrongPass123"})
-    unknown = await client.post(LOGIN, json={"email": "missing@example.com", "password": "WrongPass123"})
+    known = await client.post(
+        LOGIN, json={"email": "buyer@example.com", "password": "WrongPass123"}
+    )
+    unknown = await client.post(
+        LOGIN, json={"email": "missing@example.com", "password": "WrongPass123"}
+    )
     assert known.status_code == unknown.status_code == 401
     assert known.json() == unknown.json() == {"detail": "Invalid email or password"}
 
 
 async def test_duplicate_normalized_email_returns_documented_conflict(client):
     await register(client)
-    response = await client.post(REGISTER, json={"email": "  BUYER@EXAMPLE.COM  ", "password": PASSWORD})
+    response = await client.post(
+        REGISTER, json={"email": "  BUYER@EXAMPLE.COM  ", "password": PASSWORD}
+    )
     assert response.status_code == 409
-    assert ErrorResponse.model_validate(response.json()).detail == "User with this email already exists"
+    assert (
+        ErrorResponse.model_validate(response.json()).detail
+        == "User with this email already exists"
+    )
 
 
 @pytest.mark.parametrize(
@@ -317,7 +346,9 @@ async def test_invalid_request_returns_validation_error(client, path, payload):
 
 @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 101}, {"offset": -1}])
 async def test_pagination_boundaries_are_enforced(client, account, params):
-    response = await client.get(ORDERS, params=params, headers=authorization(tokens.create_access_token(account.id)))
+    response = await client.get(
+        ORDERS, params=params, headers=authorization(tokens.create_access_token(account.id))
+    )
     assert response.status_code == 422
 
 
@@ -363,7 +394,11 @@ async def test_success_examples_match_actual_response_dtos(client, path, method,
     schema = (await client.get("/openapi.json")).json()
     content = schema["paths"][path][method]["responses"][status]["content"]["application/json"]
     assert content["schema"]["$ref"] == f"#/components/schemas/{model.__name__}"
-    examples = [content["example"]] if "example" in content else [example["value"] for example in content["examples"].values()]
+    examples = (
+        [content["example"]]
+        if "example" in content
+        else [example["value"] for example in content["examples"].values()]
+    )
     assert examples
     for example in examples:
         model.model_validate(example)
@@ -391,13 +426,18 @@ async def test_error_schemas_headers_and_examples_are_documented(client):
     for path in (REGISTER, LOGIN, REFRESH, ORDERS):
         method = "get" if path == ORDERS else "post"
         response = schema["paths"][path][method]["responses"]["422"]
-        assert response["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/HTTPValidationError"
+        assert (
+            response["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/HTTPValidationError"
+        )
 
 
 async def test_request_fields_and_pagination_have_descriptions_and_examples(client):
     schema = (await client.get("/openapi.json")).json()
     for path, model in ((REGISTER, UserRegister), (LOGIN, UserLogin), (REFRESH, RefreshRequest)):
-        request = schema["paths"][path]["post"]["requestBody"]["content"]["application/json"]["schema"]
+        request = schema["paths"][path]["post"]["requestBody"]["content"]["application/json"][
+            "schema"
+        ]
         assert request["$ref"] == f"#/components/schemas/{model.__name__}"
         fields = schema["components"]["schemas"][model.__name__]["properties"]
         example = {name: field["examples"][0] for name, field in fields.items()}
@@ -406,7 +446,9 @@ async def test_request_fields_and_pagination_have_descriptions_and_examples(clie
         if "password" in fields:
             assert fields["password"]["writeOnly"] is True
             assert fields["password"]["format"] == "password"
-    parameters = {parameter["name"]: parameter for parameter in schema["paths"][ORDERS]["get"]["parameters"]}
+    parameters = {
+        parameter["name"]: parameter for parameter in schema["paths"][ORDERS]["get"]["parameters"]
+    }
     assert parameters["limit"]["description"] and parameters["offset"]["description"]
     assert parameters["limit"]["schema"]["default"] == 20
     assert parameters["limit"]["schema"]["minimum"] == 1

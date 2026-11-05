@@ -68,9 +68,7 @@ async def reserve_gift_cards_for_order(
         session,
         locked_order.id,
     )
-    expected_counts = Counter(
-        {nominal: len(prices) for nominal, prices in plan.items()}
-    )
+    expected_counts = Counter({nominal: len(prices) for nominal, prices in plan.items()})
     if existing_cards:
         actual_counts = Counter(card.nominal_usd for card in existing_cards)
         if actual_counts != expected_counts:

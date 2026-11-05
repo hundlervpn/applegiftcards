@@ -79,7 +79,9 @@ async def test_get_by_id_returns_none_when_missing(subscriptions):
     assert await subscriptions.get_by_id(999_999) is None
 
 
-async def test_add_persists_database_defaults_when_status_and_dunning_omitted(db_session, subscriptions):
+async def test_add_persists_database_defaults_when_status_and_dunning_omitted(
+    db_session, subscriptions
+):
     user = await _user(db_session)
     await _price(db_session)
     subscription = Subscription(
